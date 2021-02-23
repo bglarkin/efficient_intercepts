@@ -158,7 +158,7 @@ gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
 
 
 
-#### Analysis ####
+#### Analysis data ####
 # ——————————————————————————————————
 # UNDER DEVELOPMENT
 # Create analysis dataframes by joining data with metadata
@@ -208,12 +208,12 @@ sample_points <- c(200, 160, 120, 100, 80, 40)
 spe_fun = function(x) {
   data.frame(
     sample_points = factor(sample_points),
-    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = sample_points)
+    pred = specaccum(x, method = "exact") %>% predict(., newdata = sample_points)
   )
 }
 
 
-spe_rarefaction <- 
+spe_pred <- 
   lapply(spe_mat_list, spe_fun) %>% 
   bind_rows(.id = "id") %>% 
   group_by(id) %>% 
@@ -221,10 +221,55 @@ spe_rarefaction <-
   ungroup()
 
 
-ggplot(spe_rarefaction, aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90") +
-  theme_bgl
+
 # Compare rarefaction with exact. with only 1s for abundance, may be the same and exact is faster
 
 
 # Need to consider adding a map, but make responsive to selected habitat points? Or just drop the map? 
+
+
+
+
+rows_spe_pred <- spe_pred %>% drop_na() %>% filter(sample_points == 200)
+
+
+example_rows <- trunc(dim(rows_spe_pred)[1] * c(1 / dim(rows_spe_pred)[1], 0.25, 0.50, 0.75, 1.00))
+
+example_gp <-
+rows_spe_pred %>% 
+  arrange(pred) %>% 
+  slice(example_rows) %>% 
+  pull(id)
+
+
+
+
+example_curves <-
+  data.frame(
+    c(1:200),
+    specaccum(spe_mat_list[[example_gp[1]]])$richness,
+    specaccum(spe_mat_list[[example_gp[2]]])$richness,
+    specaccum(spe_mat_list[[example_gp[3]]])$richness,
+    specaccum(spe_mat_list[[example_gp[4]]])$richness,
+    specaccum(spe_mat_list[[example_gp[5]]])$richness
+  )
+
+names(example_curves) <- c("sample_points", example_gp)
+
+example_curves %>% 
+  pivot_longer(-sample_points, names_to = "grid_points")
+
+ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_points"),
+       aes(x = sample_points, y = value, group = grid_points)) +
+  geom_vline(xintercept = 100) +
+  geom_line() +
+  theme_bgl 
+
+
+#### Results ####
+# ——————————————————————————————————
+
+
+ggplot(spe_pred, aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90") +
+  theme_bgl
