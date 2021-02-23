@@ -152,3 +152,79 @@ gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
 
 
 
+
+
+
+
+
+
+#### Analysis ####
+# ——————————————————————————————————
+# UNDER DEVELOPMENT
+# Create analysis dataframes by joining data with metadata
+# Test analysis scripts for efficacy
+
+
+
+
+# objects for use in the loop (revise annotation)
+grid_points <- sort(unique(spe_df$grid_point))
+spe_mat_list <- vector(mode = "list", length = length(grid_points))
+names(spe_mat_list) = c(paste0("gp_", grid_points))
+
+# species data with alpha codes and without intercept field
+spe_mat_df <-
+  spe_df %>% 
+  select(-intercept) %>% 
+  left_join(spe_meta_df %>% select(key_plant_species, key_plant_code), by = "key_plant_species") %>% 
+  select(-key_plant_species) %>% 
+  mutate(detected = 1) %>% 
+  glimpse()
+
+
+for (i in 1:length(grid_points)) {
+  # filter gpint_spe_rich_df to single grid points
+  spe_mat_temp_df <-
+    data.frame(
+      spe_mat_df %>% 
+        filter(grid_point == grid_points[i]) %>% 
+        pivot_wider(names_from = key_plant_code, values_from = detected, values_fn = min, values_fill = 0) %>% 
+        arrange(transect_point) %>% 
+        select(-NV, -grid_point),
+      row.names = 1
+    )
+  
+  # store filtered data as list object
+  spe_mat_list[[i]] <-
+    assign(
+      paste0("gp_", grid_points[i]),
+      spe_mat_temp_df
+    )
+}
+
+
+sample_points <- c(200, 160, 120, 100, 80, 40)
+
+spe_fun = function(x) {
+  data.frame(
+    sample_points = factor(sample_points),
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = sample_points)
+  )
+}
+
+
+spe_rarefaction <- 
+  lapply(spe_mat_list, spe_fun) %>% 
+  bind_rows(.id = "id") %>% 
+  group_by(id) %>% 
+  mutate(pred_pct = (pred / max(pred)) * 100) %>% 
+  ungroup()
+
+
+ggplot(spe_rarefaction, aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90") +
+  theme_bgl
+# Compare rarefaction with exact. with only 1s for abundance, may be the same and exact is faster
+
+
+# Need to consider adding a map, but make responsive to selected habitat points? Or just drop the map? 
