@@ -153,20 +153,14 @@ gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
 
 
 
-
-
-
-
-
-#### Analysis data ####
+#### Species richness ####
 # ——————————————————————————————————
 # UNDER DEVELOPMENT
 # Create analysis dataframes by joining data with metadata
 # Test analysis scripts for efficacy
 
-
-
-
+# Data wrangling
+# ————————————————————————————————————————
 # objects for use in the loop (revise annotation)
 grid_points <- sort(unique(spe_df$grid_point))
 spe_mat_list <- vector(mode = "list", length = length(grid_points))
@@ -181,9 +175,9 @@ spe_mat_df <-
   mutate(detected = 1) %>% 
   glimpse()
 
-
+# Create list objects for each grid point and transform objects to species-samples matrices
 for (i in 1:length(grid_points)) {
-  # filter gpint_spe_rich_df to single grid points
+  # filter spe_mat_df to individual grid points and pivot to a species-samples matrix
   spe_mat_temp_df <-
     data.frame(
       spe_mat_df %>% 
@@ -193,7 +187,6 @@ for (i in 1:length(grid_points)) {
         select(-NV, -grid_point),
       row.names = 1
     )
-  
   # store filtered data as list object
   spe_mat_list[[i]] <-
     assign(
@@ -202,7 +195,7 @@ for (i in 1:length(grid_points)) {
     )
 }
 
-
+# Create vectors of predicted richness for desired number of intercept sample points
 sample_points <- c(200, 160, 120, 100, 80, 40)
 
 spe_fun = function(x) {
@@ -212,26 +205,19 @@ spe_fun = function(x) {
   )
 }
 
-
+# This is where the accumulations at desired points is calculated
 spe_pred <- 
   lapply(spe_mat_list, spe_fun) %>% 
   bind_rows(.id = "id") %>% 
   group_by(id) %>% 
   mutate(pred_pct = (pred / max(pred)) * 100) %>% 
-  ungroup()
+  ungroup() %>% 
+  separate(id, into = c(NA, "grid_point"), sep = "_", remove = FALSE) %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators) %>% mutate(grid_point = as.character(grid_point)), by = "grid_point")
 
 
-
-# Compare rarefaction with exact. with only 1s for abundance, may be the same and exact is faster
-
-
-# Need to consider adding a map, but make responsive to selected habitat points? Or just drop the map? 
-
-
-
-
+# Subset richness data to a small set of grid_points to use as examples of accumulation curves
 rows_spe_pred <- spe_pred %>% drop_na() %>% filter(sample_points == 200)
-
 
 example_rows <- trunc(dim(rows_spe_pred)[1] * c(1 / dim(rows_spe_pred)[1], 0.25, 0.50, 0.75, 1.00))
 
@@ -240,9 +226,6 @@ rows_spe_pred %>%
   arrange(pred) %>% 
   slice(example_rows) %>% 
   pull(id)
-
-
-
 
 example_curves <-
   data.frame(
@@ -256,20 +239,25 @@ example_curves <-
 
 names(example_curves) <- c("sample_points", example_gp)
 
-example_curves %>% 
-  pivot_longer(-sample_points, names_to = "grid_points")
 
-ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_points"),
-       aes(x = sample_points, y = value, group = grid_points)) +
+# Results
+# ——————————————————————————————————
+
+ggplot(spe_pred %>% drop_na(), aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90") +
+  labs(title = "All grid points") +
+  theme_bgl
+
+ggplot(spe_pred %>% drop_na() %>% filter(type3_vegetation_indicators == "uncultivated grassland native or degraded"), aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90") +
+  labs(title = "Uncultivated grassland grid points") +
+  theme_bgl
+
+ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
+       aes(x = sample_points, y = value, group = grid_pt)) +
   geom_vline(xintercept = 100) +
   geom_line() +
   theme_bgl 
 
 
-#### Results ####
-# ——————————————————————————————————
 
-
-ggplot(spe_pred, aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90") +
-  theme_bgl
