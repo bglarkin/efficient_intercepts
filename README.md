@@ -7,3 +7,5 @@ Every five years, we survey plants across the ranch at 582 locations. At each lo
 In this analysis, data from the 2016 ranch wide survey are used. An interactive graphic of the 2016 data can be viewed on the MPG Ranch [Livemap](https://livemap.mpgranch.com/flora?center=46.701042376591104&center=-113.98378260433674&layers=flora&timelineBounds=1455759297&timelineBounds=1479513936&zoom=13). 
 
 Our existing survey [protocol](https://docs.google.com/document/d/16XrPWP4kLGzU5aZmp7F0rF4aNdhWfNzuXJqCp_ShbMY/edit?usp=sharing) will likely be revised as a result of this analysis. 
+
+This project was started on a Google Colaboratory [Notebook](https://colab.research.google.com/drive/1pm-39QOTpfvI5zGb4KtJzOggfWwCnky9?usp=sharing), but was moved to speed up processing, allow production of a report in Markdown, and to improve readability for readers who are not familiar with Colaboratory functions. Users who wish to execute functions on the Colaboratory Notebook must have API keys to access data from the Google Cloud. 
