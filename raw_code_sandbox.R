@@ -258,18 +258,42 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
 #### Ground cover ####
 # ——————————————————————————————————
 
+# Choose ground cover types to keep
+grcov_common <-
+  grcov_pull_df %>% 
+  count(intercept_ground_code) %>% 
+  mutate(pct_rank = percent_rank(n) %>% round(., 2)) %>% 
+  arrange(-pct_rank) %>% 
+  filter(pct_rank >= 0.50)
+grcov_common %>% 
+  kable(format = "pandoc")
+grcov_common_codes <-
+  grcov_common$intercept_ground_code
 
 p_285 <-
   grcov_pull_df %>%  
   filter(grid_point == 285) %>% 
   mutate(detected = 1) %>% 
-  glimpse() %>% 
-  group_by(intercept_ground_code) %>% 
-  summarize(pct = sum(detected) / 2)
+  glimpse() 
 
 
-samp_grcov <- grcov_pull_df[sample(nrow(grcov_pull_df), replace = TRUE, 100), ]
 
+## bootstrap approach
+# boot.mean<-numeric()
+B <- 1000
+boot.sample = vector(mode = "list", length = B)
 
-## added new line to code in issue-1 branch
+for (i in 1:B) {
+  boot.sample[[i]] <-
+    sample_n(p_285, size = 200, replace = TRUE) %>% 
+    group_by(grid_point, intercept_ground_code) %>% 
+    summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>% 
+    mutate(run = i)
+  #boot.mean[i] <- mean(boot.sample)
+}
+bsamp_df <- bind_rows(boot.sample) %>% glimpse()
+bsamp_df %>% 
+  group_by(grid_point, intercept_ground_code) %>% 
+  summarize(boot.mean = mean(pct), boot.se = sd(pct), .groups = "drop") %>% ungroup()
+
 
