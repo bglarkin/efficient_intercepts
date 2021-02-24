@@ -258,6 +258,3 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
   geom_vline(xintercept = 100) +
   geom_line() +
   theme_bgl 
-
-
-
