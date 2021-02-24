@@ -346,7 +346,7 @@ for (i in 1:length(gp)) {
   grcov_sample_list[[i]] <- samp_temp_df
 }
 
-
+str(grcov_sample_list)
 
 
 
