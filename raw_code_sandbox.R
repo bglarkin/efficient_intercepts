@@ -123,7 +123,7 @@ grcov_pull_bq <- bq_project_query(billing, grcov_pull_sql)
 grcov_pull_tb <- bq_table_download(grcov_pull_bq)
 grcov_pull_df <- 
   as.data.frame(grcov_pull_tb) %>% 
-  select(grid_point, intercept_ground_code) %>% 
+  select(grid_point, transect_point, intercept_ground_code) %>% 
   glimpse()
 
 
@@ -257,4 +257,26 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
        aes(x = sample_points, y = value, group = grid_pt)) +
   geom_vline(xintercept = 100) +
   geom_line() +
+  scale_x_continuous(breaks = c(0, sample_points)) +
   theme_bgl 
+
+
+
+
+
+
+#### Ground cover ####
+# ——————————————————————————————————
+
+
+grcov_pull_df %>%  
+  filter(grid_point == 285) %>% 
+  mutate(detected = 1) %>% 
+  glimpse() %>% 
+  group_by(intercept_ground_code) %>% 
+  summarize(pct = sum(detected) / 2)
+
+## use sample_n https://dplyr.tidyverse.org/reference/sample.html
+
+samp_grcov <- grcov_pull_df[sample(nrow(grcov_pull_df), replace = TRUE, 100), ]
+
