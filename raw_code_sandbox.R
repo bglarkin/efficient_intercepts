@@ -283,10 +283,14 @@ p_285 <-
 
 
 ## bootstrap approach
-# boot.mean<-numeric()
 b <- 1000
 gp <- sort(unique(grcov_pull_df$grid_point))
-boot_sample_list = vector(mode = "list", length = B)
+samp_200_list = vector(mode = "list", length = b)
+samp_160_list = vector(mode = "list", length = b)
+samp_120_list = vector(mode = "list", length = b)
+samp_100_list = vector(mode = "list", length = b)
+samp_80_list = vector(mode = "list", length = b)
+samp_40_list = vector(mode = "list", length = b)
 grcov_sample_list = vector(mode = "list", length = length(gp))
 
 
@@ -297,23 +301,63 @@ for (i in 1:length(gp)) {
     filter(grid_point == gp[i]) %>% 
     mutate(detected = 1)
   for (j in 1:b) {
-    boot_sample_list[[j]] <-
+    samp_200_list[[j]] <-
       sample_n(grcov_temp_df, size = 200, replace = TRUE) %>%
       group_by(grid_point, intercept_ground_code) %>%
-      summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>%
-      mutate(run = j)
-    boot_sample_temp_df <- bind_rows(boot_sample_list)
+      summarize(pct = sum(detected) / 2, .groups = "drop") %>% 
+      mutate(sampled_points = 200) %>% 
+      ungroup()
+    samp_160_list[[j]] <-
+      sample_n(grcov_temp_df, size = 160, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 1.6, .groups = "drop") %>% 
+      mutate(sampled_points = 160) %>% 
+      ungroup()
+    samp_120_list[[j]] <-
+      sample_n(grcov_temp_df, size = 120, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 1.2, .groups = "drop") %>% 
+      mutate(sampled_points = 120) %>% 
+      ungroup()
+    samp_100_list[[j]] <-
+      sample_n(grcov_temp_df, size = 100, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 1, .groups = "drop") %>% 
+      mutate(sampled_points = 100) %>% 
+      ungroup()
+    samp_80_list[[j]] <-
+      sample_n(grcov_temp_df, size = 80, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 0.8, .groups = "drop") %>% 
+      mutate(sampled_points = 80) %>% 
+      ungroup()
+    samp_40_list[[j]] <-
+      sample_n(grcov_temp_df, size = 40, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 0.4, .groups = "drop") %>% 
+      mutate(sampled_points = 40) %>% 
+      ungroup()
   }
-  grcov_sample_list[[i]] <- boot_sample_temp_df
+  samp_temp_df <- 
+    bind_rows(samp_200_list, samp_160_list, samp_120_list, samp_100_list, samp_80_list, samp_40_list) %>% 
+    group_by(grid_point, sampled_points, intercept_ground_code) %>%
+    summarize(boot_mean = mean(pct), boot_se = sd(pct), .groups = "drop") %>% 
+    ungroup()
+  grcov_sample_list[[i]] <- samp_temp_df
 }
 
-view(grcov_sample_list[[79]])
-
-str(grcov_sample_list)
-
-bsamp_df <- bind_rows(boot_sample) %>% glimpse()
-bsamp_df %>% 
-  group_by(grid_point, intercept_ground_code) %>% 
-  summarize(boot.mean = mean(pct), boot.se = sd(pct), .groups = "drop") %>% ungroup()
 
 
+
+
+# This only works for one grid point, a test for now.
+bind_rows(grcov_sample_list) %>% 
+  filter(grid_point == 2) %>% 
+  mutate(upr = boot_mean + boot_se, lwr = boot_mean - boot_se) %>% 
+  ggplot(aes(x = sampled_points, y = boot_mean, group = intercept_ground_code)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr, fill = intercept_ground_code), alpha = 0.1) +
+  geom_line(aes(color = intercept_ground_code)) +
+  scale_x_continuous(breaks = c(40, 80, 100, 120, 160, 200)) +
+  scale_color_discrete_sequential(name = "", palette = "Hawaii") +
+  scale_fill_discrete_sequential(name = "", palette = "Hawaii") +
+  theme_bgl
