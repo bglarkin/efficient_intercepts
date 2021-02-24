@@ -46,20 +46,10 @@ for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
 
-# GG map, current version GitHub (slow loading)
-if(!requireNamespace("devtools")) install.packages("devtools")
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
-# mapping
-library("ggmap")
-
 # API keys
 # ————————————————————————————————————————
 # API keys are pulled from local resources and are not available in the hosted environment.
-# Users must have API keys for Google Big Query and Google Maps
-
-# Google Maps API (local file)
-mapKey <- fromJSON(file = "/Users/blarkin/Egnyte/Private/blarkin/ΩMiscellaneous/R_global/R_globalKeys.json")$mapKey
-register_google(key = mapKey)
+# Users must have API key for Google Big Query
 
 # Big Query API Key (local file)
 bq_auth(path = "/content/mpg-data-warehouse-api_key-master.json")
@@ -269,14 +259,14 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
 # ——————————————————————————————————
 
 
-grcov_pull_df %>%  
+p_285 <-
+  grcov_pull_df %>%  
   filter(grid_point == 285) %>% 
   mutate(detected = 1) %>% 
   glimpse() %>% 
   group_by(intercept_ground_code) %>% 
   summarize(pct = sum(detected) / 2)
 
-## use sample_n https://dplyr.tidyverse.org/reference/sample.html
 
 samp_grcov <- grcov_pull_df[sample(nrow(grcov_pull_df), replace = TRUE, 100), ]
 
