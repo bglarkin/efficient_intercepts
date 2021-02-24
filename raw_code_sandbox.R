@@ -278,20 +278,40 @@ p_285 <-
 
 
 
+# Data wrangling
+# ————————————————————————————————————————
+
+
 ## bootstrap approach
 # boot.mean<-numeric()
-B <- 1000
-boot.sample = vector(mode = "list", length = B)
+b <- 1000
+gp <- sort(unique(grcov_pull_df$grid_point))
+boot_sample_list = vector(mode = "list", length = B)
+grcov_sample_list = vector(mode = "list", length = length(gp))
 
-for (i in 1:B) {
-  boot.sample[[i]] <-
-    sample_n(p_285, size = 200, replace = TRUE) %>% 
-    group_by(grid_point, intercept_ground_code) %>% 
-    summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>% 
-    mutate(run = i)
-  #boot.mean[i] <- mean(boot.sample)
+
+
+for (i in 1:length(gp)) {
+  grcov_temp_df <-
+    grcov_pull_df %>% 
+    filter(grid_point == gp[i]) %>% 
+    mutate(detected = 1)
+  for (j in 1:b) {
+    boot_sample_list[[j]] <-
+      sample_n(grcov_temp_df, size = 200, replace = TRUE) %>%
+      group_by(grid_point, intercept_ground_code) %>%
+      summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>%
+      mutate(run = j)
+    boot_sample_temp_df <- bind_rows(boot_sample_list)
+  }
+  grcov_sample_list[[i]] <- boot_sample_temp_df
 }
-bsamp_df <- bind_rows(boot.sample) %>% glimpse()
+
+view(grcov_sample_list[[79]])
+
+str(grcov_sample_list)
+
+bsamp_df <- bind_rows(boot_sample) %>% glimpse()
 bsamp_df %>% 
   group_by(grid_point, intercept_ground_code) %>% 
   summarize(boot.mean = mean(pct), boot.se = sd(pct), .groups = "drop") %>% ungroup()
