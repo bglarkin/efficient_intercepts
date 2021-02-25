@@ -282,23 +282,51 @@ p_285 <-
 # ————————————————————————————————————————
 
 grcov_pull_df %>% glimpse()
+n_points <- length(unique(grcov_pull_df$grid_point))
 grcov_list <- split(grcov_pull_df %>% select(-transect_point), factor(grcov_pull_df$grid_point))
 
 
 grcov_boot <- function(pts) {
   lapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>%
     bind_rows() %>%
-    mutate(detected = 1) %>%
-    group_by(grid_point, intercept_ground_code) %>%
-    summarize(pct_detected = sum(detected) / (pts * 10), .groups = "drop") %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = 40), 3)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts, .groups = "drop") %>%
     # group_by(intercept_ground_code) %>%
     # summarize(mean_detected = mean(pct_detected), se_detected = sd(pct_detected), .groups = "drop") %>%
     # ungroup() %>%
     mutate(sampled_n = factor(pts))
 }
 
+pppts <- 40
+aa <- lapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pppts)
+bb <- bind_rows(aa) 
+cc <- bb %>% filter(grid_point %in% c(20, 157, 510)) 
+dd <- cc %>% mutate(detected = 1, boot_run = rep(rep(1:1000, each = pppts), 3)) 
+ee <- dd %>% group_by(grid_point, boot_run, intercept_ground_code) %>% summarize(pct = sum(detected) / pppts * 100) 
+ff <- ee %>% group_by(grid_point, intercept_ground_code) %>%  summarize(mean = mean(pct), se = sd(pct))
+ff %>% print(n = Inf)
+
+
+  
+
+
+bind_rows() %>%
+  mutate(detected = 1) %>%
+  group_by(grid_point, intercept_ground_code) %>%
+  summarize(pct_detected = sum(detected) / (pts * 10), .groups = "drop") %>%
+  # group_by(intercept_ground_code) %>%
+  # summarize(mean_detected = mean(pct_detected), se_detected = sd(pct_detected), .groups = "drop") %>%
+  # ungroup() %>%
+  mutate(sampled_n = factor(pts))
+
+
+
 grcov_boot(pts = 100)  
   
+
+
+
 boot.csv <- read.csv("~/Desktop/ground_cover_boot.csv") %>% glimpse()
 ggplot(boot.csv, aes(x = sampled_points, y = boot_se, group = grid_point)) +
   geom_line() +
