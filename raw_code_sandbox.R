@@ -281,6 +281,46 @@ p_285 <-
 # Data wrangling
 # ————————————————————————————————————————
 
+grcov_pull_df %>% glimpse()
+grcov_list <- split(grcov_pull_df %>% select(-transect_point), factor(grcov_pull_df$grid_point))
+
+
+grcov_boot <- function(pts) {
+  lapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1) %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / (pts * 10), .groups = "drop") %>%
+    # group_by(intercept_ground_code) %>%
+    # summarize(mean_detected = mean(pct_detected), se_detected = sd(pct_detected), .groups = "drop") %>%
+    # ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+grcov_boot(pts = 100)  
+  
+boot.csv <- read.csv("~/Desktop/ground_cover_boot.csv") %>% glimpse()
+ggplot(boot.csv, aes(x = sampled_points, y = boot_se, group = grid_point)) +
+  geom_line() +
+  facet_wrap(vars(intercept_ground_code))
+
+
+str(grcov_list)
+str(grcov_samp_10)
+
+
+
+
+names(grcov_list) <- sort(unique(grcov_pull_df$grid_point))
+str(grcov_list)
+lapply(grcov_list, dim)
+grcov_list[550]
+
+data.frame(
+  unlist(lapply(grcov_list, function(x) x[1,2]))
+)
+
+
 
 ## bootstrap approach
 b <- 1000
