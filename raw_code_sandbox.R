@@ -305,3 +305,4 @@ ggplot(grcov_boot_mean, aes(x = sampled_n, y = se_pct, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code)) +
   labs(title = "vectorized")
+
