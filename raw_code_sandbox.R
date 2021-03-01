@@ -326,20 +326,57 @@ ggplot(ht_na, aes(x = count_NA)) +
 # Filter to points that have fewer than 40 NA values, then use 160 as the maximum number of points for resampling
 # Use a vector of grid_points with < 40 NA to filter the data
 ht_gp_filter <- ht_na %>% filter(count_NA < 40) %>% pull(grid_point)
+ht_df_filter <- ht_df %>% filter(grid_point %in% ht_gp_filter) %>% drop_na()
 n_points_ht_filter <- length(ht_gp_filter)
-ht_list <- split(ht_df %>% select(-transect_point), factor(ht_df$grid_point))
+ht_list_filter <- split(ht_df_filter %>% select(-transect_point), factor(ht_df_filter$grid_point))
+ht_list_filter %>% bind_rows() %>% ggplot(aes(x = height_intercept_1)) + geom_histogram(binwidth = 1, center = 0.5, closed = "left")
+# Split function returned identical data (not shown)
+
+ht_boot_filter <- function(pts) {
+  lapply(ht_list_filter, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>% 
+    bind_rows() %>% 
+    mutate(boot_run = rep(rep(1:1000, each = pts), n_points_ht_filter)) %>%
+    group_by(grid_point, boot_run) %>%
+    summarize(ht_mean = mean(height_intercept_1), .groups = "drop") %>%
+    group_by(grid_point) %>% 
+    summarize(ht_boot_mean = mean(ht_mean), ht_boot_se = sd(ht_mean), .groups = "drop") %>% 
+    ungroup() %>% 
+    mutate(sampled_n = factor(pts))
+}
+
+ht_boot_mean_filter <- 
+  bind_rows(ht_boot_filter(40), ht_boot_filter(80), ht_boot_filter(100), ht_boot_filter(120), ht_boot_filter(160))
+ggplot(ht_boot_mean_filter, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
+  geom_line()
+ggplot(ht_boot_mean_filter, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
+  geom_line()
 
 
-
-
-
-
+# Height of vegetation surface (NA = 0)
+# Use all points
+# Replace NA with 0
+# As with ground cover, 7 grid points are incomplete (199 values). This will be ignored.
+n_points_ht <- length(unique(ht_df$grid_point))
+ht_list <- split(ht_df %>% select(-transect_point) %>% replace_na(list(height_intercept_1 = 0)), factor(ht_df$grid_point))
+ht_list %>% bind_rows() %>% ggplot(aes(x = height_intercept_1)) + geom_histogram(binwidth = 1, center = 0.5, closed = "left")
 
 
 ht_boot <- function(pts) {
-  lapply(ht_list, function(x, pts) {slice_sample(x %>% drop_na, n = pts * 1000, replace = TRUE)})
+  lapply(ht_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>% 
+    bind_rows() %>% 
+    mutate(boot_run = rep(rep(1:1000, each = pts), n_points_ht)) %>%
+    group_by(grid_point, boot_run) %>%
+    summarize(ht_mean = mean(height_intercept_1), .groups = "drop") %>%
+    group_by(grid_point) %>% 
+    summarize(ht_boot_mean = mean(ht_mean), ht_boot_se = sd(ht_mean), .groups = "drop") %>% 
+    ungroup() %>% 
+    mutate(sampled_n = factor(pts))
 }
 
-lapply(ht_list, function(x) {x[which(!complete.cases(x)), ] %>% count()}) %>% bind_rows(.id = "id") %>% arrange(-n) %>% kable()
+ht_boot_mean <- 
+  bind_rows(ht_boot(40), ht_boot(80), ht_boot(100), ht_boot(120), ht_boot(160), ht_boot(200))
+ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
+  geom_line()
+ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
+  geom_line()
 
-ht_list[[273]] %>% summary()
