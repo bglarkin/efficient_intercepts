@@ -46,20 +46,10 @@ for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
 
-# GG map, current version GitHub (slow loading)
-if(!requireNamespace("devtools")) install.packages("devtools")
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
-# mapping
-library("ggmap")
-
 # API keys
 # ————————————————————————————————————————
 # API keys are pulled from local resources and are not available in the hosted environment.
-# Users must have API keys for Google Big Query and Google Maps
-
-# Google Maps API (local file)
-mapKey <- fromJSON(file = "/Users/blarkin/Egnyte/Private/blarkin/ΩMiscellaneous/R_global/R_globalKeys.json")$mapKey
-register_google(key = mapKey)
+# Users must have API key for Google Big Query
 
 # Big Query API Key (local file)
 bq_auth(path = "/content/mpg-data-warehouse-api_key-master.json")
@@ -268,15 +258,51 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
 #### Ground cover ####
 # ——————————————————————————————————
 
+# Choose ground cover types to keep
+grcov_common <-
+  grcov_pull_df %>% 
+  count(intercept_ground_code) %>% 
+  mutate(pct_rank = percent_rank(n) %>% round(., 2)) %>% 
+  arrange(-pct_rank) %>% 
+  filter(pct_rank >= 0.50)
+grcov_common %>% 
+  kable(format = "pandoc")
+grcov_common_codes <-
+  grcov_common$intercept_ground_code
 
-grcov_pull_df %>%  
+p_285 <-
+  grcov_pull_df %>%  
   filter(grid_point == 285) %>% 
   mutate(detected = 1) %>% 
-  glimpse() %>% 
-  group_by(intercept_ground_code) %>% 
-  summarize(pct = sum(detected) / 2)
+  glimpse() 
 
-## use sample_n https://dplyr.tidyverse.org/reference/sample.html
 
-samp_grcov <- grcov_pull_df[sample(nrow(grcov_pull_df), replace = TRUE, 100), ]
+
+# Data wrangling
+# ————————————————————————————————————————
+
+grcov_pull_df %>% glimpse()
+n_points <- length(unique(grcov_pull_df$grid_point))
+grcov_list <- split(grcov_pull_df %>% select(-transect_point), factor(grcov_pull_df$grid_point))
+
+
+grcov_boot <- function(pts) {
+  lapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), n_points)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts * 100, .groups = "drop") %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(boot_mean_pct = mean(pct_detected), boot_se_pct = sd(pct_detected), .groups = "drop") %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+grcov_boot_mean <- 
+  bind_rows(grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
+  glimpse()
+ggplot(grcov_boot_mean, aes(x = sampled_n, y = se_pct, group = grid_point)) +
+  geom_line() +
+  facet_wrap(vars(intercept_ground_code)) +
+  labs(title = "vectorized")
 
