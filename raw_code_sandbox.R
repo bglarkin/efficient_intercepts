@@ -293,7 +293,7 @@ grcov_boot <- function(pts) {
     group_by(grid_point, boot_run, intercept_ground_code) %>%
     summarize(pct_detected = sum(detected) / pts * 100, .groups = "drop") %>%
     group_by(grid_point, intercept_ground_code) %>%
-    summarize(boot_mean_pct = mean(pct_detected), boot_se_pct = sd(pct_detected), .groups = "drop") %>%
+    summarize(boot_pct_mean = mean(pct_detected), boot_pct_se = sd(pct_detected), .groups = "drop") %>%
     ungroup() %>%
     mutate(sampled_n = factor(pts))
 }
@@ -301,11 +301,12 @@ grcov_boot <- function(pts) {
 grcov_boot_mean <- 
   bind_rows(grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
   glimpse()
-ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_se_pct, group = grid_point)) +
+ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
   geom_line() +
-  facet_wrap(vars(intercept_ground_code)) +
-  labs(title = "vectorized")
-
+  facet_wrap(vars(intercept_ground_code))
+ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
+  geom_line() +
+  facet_wrap(vars(intercept_ground_code))
 
 
 #### Height ####
@@ -380,3 +381,92 @@ ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
 ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
   geom_line()
 
+
+
+#### Pct cover in functional groups ####
+# ——————————————————————————————————
+# fg for functional groups
+
+spe_df %>% glimpse()
+spe_meta_df %>% glimpse()
+
+fg_df <- spe_df %>%
+  left_join(spe_meta_df, by = "key_plant_species") %>%
+  select(grid_point, key_plant_code, plant_native_status, plant_life_cycle, plant_life_form) %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "biennial", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub")
+  )
+
+fg_df %>% group_by(grid_point, plant_native_status, plant_life_cycle, plant_life_form) %>% 
+  count() %>% 
+  ggplot(aes(x = n / 2)) +
+  geom_histogram(aes(fill = plant_native_status, color = plant_native_status), binwidth = 10, center = 5, closed = "left", alpha = 0.7, position = "identity") +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  labs(x = "pct_cover") +
+  theme_bgl
+
+# Bootstrap functions and variables
+n_points_fg <- length(unique(fg_df$grid_point))
+fg_list <- split(fg_df, factor(fg_df$grid_point))
+
+
+fg_boot <- function(pts) {
+  lapply(fg_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), n_points_fg)) %>%
+    group_by(grid_point, boot_run, plant_native_status, plant_life_cycle, plant_life_form) %>%
+    summarize(pct = sum(detected) / pts * 100, .groups = "drop") %>%
+    group_by(grid_point, plant_native_status, plant_life_cycle, plant_life_form) %>%
+    summarize(boot_pct_mean = mean(pct), boot_pct_se = sd(pct), .groups = "drop") %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+fg_boot_mean <- 
+  bind_rows(fg_boot(40), fg_boot(80), fg_boot(100), fg_boot(120), fg_boot(160), fg_boot(200)) %>% 
+  glimpse()
+ggplot(fg_boot_mean, aes(x = sampled_n, y = boot_pct_se, group = interaction(grid_point, plant_native_status))) +
+  geom_line(aes(color = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  labs(x = "pct_cover") +
+  theme_bgl
+ggplot(fg_boot_mean, aes(x = sampled_n, y = boot_pct_mean, group = interaction(grid_point, plant_native_status))) +
+  geom_line(aes(color = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  labs(x = "pct_cover") +
+  theme_bgl
+
+
+fg_cover_200 <- fg_boot_mean %>% 
+  filter(sampled_n == 200) %>% 
+  rename(boot_pct_mean_200 = boot_pct_mean) %>% 
+  select(-boot_pct_se, -sampled_n) 
+
+fg_boot_mean_adj <-
+  fg_boot_mean %>% 
+  left_join(fg_cover_200, by = c("grid_point", "plant_native_status", "plant_life_cycle", "plant_life_form")) %>% 
+  mutate(boot_pct_mean_adj = boot_pct_mean_200 - boot_pct_mean)
+
+ggplot(fg_boot_mean_adj, aes(x = sampled_n, y = boot_pct_mean_adj)) +
+  geom_boxplot(aes(fill = plant_native_status), outlier.shape = NA) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form))
+
+
+
+fg_boot_mean_adj %>%
+  group_by(sampled_n, plant_native_status, plant_life_cycle, plant_life_form) %>%
+  summarize(
+    se_min = min(boot_pct_se),
+    mean_50 = quantile(boot_pct_mean_adj, probs = 0.50),
+    se_max = max(boot_pct_se), 
+    .groups = "drop"
+  ) %>% 
+  ggplot(aes(x = sampled_n, y = mean_50, group = plant_native_status)) +
+  geom_ribbon(aes(ymin = mean_50 - se_max, ymax = mean_50 + se_max, color = plant_native_status), fill = "gray90", alpha = 0.2) +
+  geom_line(aes(color = plant_native_status)) +
+  geom_point(aes(color = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  theme_bgl
+# native status might not be important???
