@@ -301,8 +301,45 @@ grcov_boot <- function(pts) {
 grcov_boot_mean <- 
   bind_rows(grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
   glimpse()
-ggplot(grcov_boot_mean, aes(x = sampled_n, y = se_pct, group = grid_point)) +
+ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_se_pct, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code)) +
   labs(title = "vectorized")
 
+
+
+#### Height ####
+# ——————————————————————————————————
+
+ht_df %>% glimpse()
+# Height data includes many NAs. These happen when no vegetation is detected at a point
+ht_na <- ht_df %>% group_by(grid_point) %>% filter(is.na(height_intercept_1)) %>% count(name = "count_NA") %>% arrange(-count_NA)
+ggplot(ht_na, aes(x = count_NA)) +
+  geom_histogram(binwidth = 1, center = 0.5, closed = "left") +
+  geom_vline(xintercept = 40)
+# NA could be NA or 0. If question is about the height of existing mature vegetation, NA is preferred
+# If question is about the average height of the surface of vegetation, 0 is preferred
+# Calculate summaries for both scenarios
+
+# Height of existing vegetation (NA are kept as NA)
+# Excluding NA values could introduce bias into bootstrap sample
+# Filter to points that have fewer than 40 NA values, then use 160 as the maximum number of points for resampling
+# Use a vector of grid_points with < 40 NA to filter the data
+ht_gp_filter <- ht_na %>% filter(count_NA < 40) %>% pull(grid_point)
+n_points_ht_filter <- length(ht_gp_filter)
+ht_list <- split(ht_df %>% select(-transect_point), factor(ht_df$grid_point))
+
+
+
+
+
+
+
+
+ht_boot <- function(pts) {
+  lapply(ht_list, function(x, pts) {slice_sample(x %>% drop_na, n = pts * 1000, replace = TRUE)})
+}
+
+lapply(ht_list, function(x) {x[which(!complete.cases(x)), ] %>% count()}) %>% bind_rows(.id = "id") %>% arrange(-n) %>% kable()
+
+ht_list[[273]] %>% summary()
