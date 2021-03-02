@@ -438,7 +438,85 @@ ggplot(fg_boot_mean, aes(x = sampled_n, y = boot_pct_mean, group = interaction(g
   labs(x = "pct_cover") +
   theme_bgl
 
+ggplot(fg_boot_mean %>% filter(grid_point %in% c(1:10)), aes(x = sampled_n, y = boot_pct_mean)) +
+  geom_line(aes(y = boot_pct_mean + boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray50", size = 0.5) +
+  geom_line(aes(y = boot_pct_mean - boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray50", size = 0.5) +
+  geom_boxplot(aes(fill = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  theme_bgl
 
+# Exemplar from one point
+# Points 540, 5, 19 are good choices
+# would need data from boot runs
+
+
+
+pts_all_fg <-
+  fg_df %>% 
+  mutate(detected = 1) %>% 
+  group_by(grid_point, plant_native_status, plant_life_cycle, plant_life_form) %>% 
+  filter(
+    plant_life_cycle == "perennial",
+    plant_life_form %in% c("forb", "graminoid"),
+    plant_native_status %in% c("native", "nonnative")
+  ) %>% 
+  summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
+  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+  count(grid_point) %>% 
+  filter(n == 4) %>% 
+  pull(grid_point)
+
+fg_df %>% 
+  filter(grid_point %in% pts_all_fg) %>% 
+  mutate(detected = 1) %>% 
+  group_by(grid_point, plant_native_status, plant_life_cycle, plant_life_form) %>% 
+  filter(
+    plant_life_cycle == "perennial",
+    plant_life_form %in% c("forb", "graminoid"),
+    plant_native_status %in% c("native", "nonnative")
+  ) %>% 
+  summarize(pct = sum(detected) / 2, .groups = "drop") %>% ungroup() %>% 
+  group_by(grid_point) %>% 
+  summarize(pct_mean = mean(pct), pct_sd = sd(pct)) %>% 
+  arrange(-pct_mean, pct_sd) %>% print(n = Inf)
+
+
+
+
+
+fg_boot_runs <- function(pts) {
+  lapply(list(fg_list$`19`), function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), 1)) %>%
+    group_by(grid_point, boot_run, plant_native_status, plant_life_cycle, plant_life_form) %>%
+    summarize(pct = sum(detected) / pts * 100, .groups = "drop") %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+fg_boot_example <-
+  bind_rows(
+    fg_boot_runs(40),
+    fg_boot_runs(80),
+    fg_boot_runs(100),
+    fg_boot_runs(120),
+    fg_boot_runs(160),
+    fg_boot_runs(200)
+  ) %>%
+  glimpse()
+ggplot(
+  fg_boot_example %>% filter(
+    plant_life_cycle == "perennial",
+    plant_life_form %in% c("forb", "graminoid"),
+    plant_native_status %in% c("native", "nonnative")
+  ),
+  aes(x = pct)
+) +
+  geom_histogram(aes(fill = plant_native_status, color = plant_native_status), binwidth = 1, center = 0.5, closed = "left", alpha = 0.3, position = "identity") +
+  facet_grid(rows = vars(sampled_n), cols = vars(plant_life_form))
+
+## This is the attempt to show a mean corrected to 200 points, but the SE envelopes don't line up
 fg_cover_200 <- fg_boot_mean %>% 
   filter(sampled_n == 200) %>% 
   rename(boot_pct_mean_200 = boot_pct_mean) %>% 
@@ -450,8 +528,11 @@ fg_boot_mean_adj <-
   mutate(boot_pct_mean_adj = boot_pct_mean_200 - boot_pct_mean)
 
 ggplot(fg_boot_mean_adj, aes(x = sampled_n, y = boot_pct_mean_adj)) +
-  geom_boxplot(aes(fill = plant_native_status), outlier.shape = NA) +
-  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form))
+  geom_line(aes(y = boot_pct_mean_adj + boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
+  geom_line(aes(y = boot_pct_mean_adj - boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
+  geom_boxplot(aes(fill = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  theme_bgl
 
 
 
@@ -469,4 +550,60 @@ fg_boot_mean_adj %>%
   geom_point(aes(color = plant_native_status)) +
   facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
   theme_bgl
-# native status might not be important???
+# native status might not be important??? 
+# End attempt to correct the mean
+
+
+#### Model to test sensitivity ####
+# ——————————————————————————————————
+
+fg_df %>% glimpse()
+
+# Calculate cover in fg at gp
+# Filter grassland points
+# Rank points on cover, choose groups to set up dummy comparison
+fg_df %>% 
+  mutate(detected = 1) %>% 
+  group_by(grid_point) %>% 
+  summarize(pct = sum(detected) / 2, .groups = "drop") %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
+  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+  arrange(-pct) 
+
+fg_df %>% 
+  mutate(detected = 1) %>% 
+  group_by(grid_point) %>% 
+  summarize(pct = sum(detected) / 2, .groups = "drop") %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
+  filter(type3_vegetation_indicators == "former cultivated") %>% 
+  arrange(pct)
+
+gp_meta_df$type3_vegetation_indicators %>% unique()
+
+
+# another attempt to show comparison between habitat types
+fg_boot_mean_compare <-
+  fg_boot_mean %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
+  filter(type3_vegetation_indicators %in% c("former cultivated", "uncultivated grassland native or degraded"),
+         plant_life_cycle == "perennial",
+         plant_life_form %in% c("forb", "graminoid"),
+         plant_native_status %in% c("native", "nonnative"))
+
+
+ggplot(fg_boot_mean_compare %>% filter(sampled_n == 200),
+       aes(x = boot_pct_mean)) +
+  geom_histogram(
+    aes(fill = type3_vegetation_indicators, color = type3_vegetation_indicators),
+    binwidth = 1,
+    center = 0.5,
+    closed = "left",
+    position = "identity",
+    alpha = 0.2
+  ) +
+  facet_grid(rows = vars(plant_life_form), cols = vars(plant_native_status))
+
+ggplot(fg_boot_mean_compare, aes(x = sampled_n, y = boot_pct_mean)) +
+  geom_boxplot(aes(fill = type3_vegetation_indicators)) +
+  facet_grid(rows = vars(plant_life_form), cols = vars(plant_native_status), scales = "free_y")
+  
