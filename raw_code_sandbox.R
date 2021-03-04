@@ -246,7 +246,7 @@ ggplot(spe_pred %>% drop_na() %>% filter(type3_vegetation_indicators == "unculti
 ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
        aes(x = sample_points, y = value, group = grid_pt)) +
   geom_vline(xintercept = 100) +
-  geom_line() +
+  geom_line(aes(linetype = grid_pt)) +
   scale_x_continuous(breaks = c(0, sample_points)) +
   theme_bgl 
 
@@ -425,7 +425,7 @@ fg_boot <- function(pts) {
 }
 
 fg_boot_mean <- 
-  bind_rows(fg_boot(40), fg_boot(80), fg_boot(100), fg_boot(120), fg_boot(160), fg_boot(200)) %>% 
+  bind_rows(fg_boot(5), fg_boot(10), fg_boot(20), fg_boot(40), fg_boot(80), fg_boot(100), fg_boot(120), fg_boot(160), fg_boot(200)) %>% 
   glimpse()
 ggplot(fg_boot_mean, aes(x = sampled_n, y = boot_pct_se, group = interaction(grid_point, plant_native_status))) +
   geom_line(aes(color = plant_native_status)) +
@@ -516,7 +516,7 @@ ggplot(
   geom_histogram(aes(fill = plant_native_status, color = plant_native_status), binwidth = 1, center = 0.5, closed = "left", alpha = 0.3, position = "identity") +
   facet_grid(rows = vars(sampled_n), cols = vars(plant_life_form))
 
-## This is the attempt to show a mean corrected to 200 points, but the SE envelopes don't line up
+## This is the attempt to show a mean corrected to 200 points
 fg_cover_200 <- fg_boot_mean %>% 
   filter(sampled_n == 200) %>% 
   rename(boot_pct_mean_200 = boot_pct_mean) %>% 
@@ -525,17 +525,17 @@ fg_cover_200 <- fg_boot_mean %>%
 fg_boot_mean_adj <-
   fg_boot_mean %>% 
   left_join(fg_cover_200, by = c("grid_point", "plant_native_status", "plant_life_cycle", "plant_life_form")) %>% 
-  mutate(boot_pct_mean_adj = boot_pct_mean_200 - boot_pct_mean)
+  mutate(boot_pct_mean_adj = boot_pct_mean - boot_pct_mean_200)
 
-ggplot(fg_boot_mean_adj, aes(x = sampled_n, y = boot_pct_mean_adj)) +
+ggplot(fg_boot_mean_adj %>% filter(plant_life_cycle != "biennial" & sampled_n != 5), aes(x = sampled_n, y = boot_pct_mean_adj)) +
   geom_line(aes(y = boot_pct_mean_adj + boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
   geom_line(aes(y = boot_pct_mean_adj - boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
-  geom_boxplot(aes(fill = plant_native_status)) +
+  geom_boxplot(aes(fill = plant_native_status), outlier.size = 0.6) +
   facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
   theme_bgl
 
 
-
+# Another way to look at the same thing
 fg_boot_mean_adj %>%
   group_by(sampled_n, plant_native_status, plant_life_cycle, plant_life_form) %>%
   summarize(
@@ -551,7 +551,15 @@ fg_boot_mean_adj %>%
   facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
   theme_bgl
 # native status might not be important??? 
-# End attempt to correct the mean
+
+# What are differences in SE for each group? Why do they look so similar?
+fg_boot_mean_adj %>%
+  group_by(sampled_n, plant_native_status, plant_life_cycle, plant_life_form) %>%
+  summarize(se_max = max(boot_pct_se), .groups = "drop") %>% 
+  filter(sampled_n != 5 & plant_life_cycle != "biennial") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
+  kable(format = "pandoc")
 
 
 #### Model to test sensitivity ####
