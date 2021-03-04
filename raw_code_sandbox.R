@@ -701,3 +701,9 @@ ggplot(fg_boot_mean_compare, aes(x = sampled_n, y = boot_pct_mean)) +
   geom_boxplot(aes(fill = type3_vegetation_indicators)) +
   facet_grid(rows = vars(plant_life_form), cols = vars(plant_native_status), scales = "free_y")
   
+
+library(boot)
+ratio <- function(d, w) sum(d$x * w)/sum(d$u * w)
+city.boot <- boot(city, ratio, R = 999, stype = "w", sim = "ordinary")
+boot.ci(city.boot, conf = c(0.90, 0.95),
+        type = c("norm", "basic", "perc", "bca"))
