@@ -234,12 +234,12 @@ names(example_curves) <- c("sample_points", example_gp)
 # ——————————————————————————————————
 
 ggplot(spe_pred %>% drop_na(), aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90") +
+  geom_boxplot(fill = "gray80") +
   labs(title = "All grid points") +
   theme_bgl
 
 ggplot(spe_pred %>% drop_na() %>% filter(type3_vegetation_indicators == "uncultivated grassland native or degraded"), aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90") +
+  geom_boxplot(fill = "gray80") +
   labs(title = "Uncultivated grassland grid points") +
   theme_bgl
 
@@ -298,15 +298,43 @@ grcov_boot <- function(pts) {
     mutate(sampled_n = factor(pts))
 }
 
-grcov_boot_mean <- 
-  bind_rows(grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
+grcov_boot_df <- 
+  bind_rows(grcov_boot(20), grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
   glimpse()
-ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
+ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
-ggplot(grcov_boot_mean, aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
+ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
+
+#### ground cover figure ####
+grcov_boot_df_200 <- grcov_boot_df %>% 
+  filter(sampled_n == 200) %>% 
+  rename(boot_pct_mean_200 = boot_pct_mean) %>% 
+  select(-boot_pct_se, -sampled_n) 
+
+grcov_boot_df_adj <-
+  grcov_boot_df %>% 
+  left_join(grcov_boot_df_200, by = c("grid_point", "intercept_ground_code")) %>% 
+  mutate(boot_pct_mean_adj = boot_pct_mean - boot_pct_mean_200)
+
+ggplot(grcov_boot_df_adj %>% filter(intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S"), sampled_n != 20), aes(x = sampled_n, y = boot_pct_mean_adj)) +
+  geom_line(aes(y = boot_pct_mean_adj + boot_pct_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_line(aes(y = boot_pct_mean_adj - boot_pct_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_boxplot(outlier.size = 0.6) +
+  labs(title = "Pct ground cover") +
+  facet_wrap(vars(intercept_ground_code)) +
+  theme_bgl
+
+# What are differences in SE for each group? 
+grcov_boot_df_adj %>%
+  group_by(sampled_n) %>%
+  summarize(se_max = max(boot_pct_se), .groups = "drop") %>% 
+  filter(sampled_n %in% c(40, 80, 100, 120, 160, 200)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
+  kable(format = "pandoc", caption = "Ground cover SE values")
 
 
 #### Height ####
@@ -325,6 +353,7 @@ ggplot(ht_na, aes(x = count_NA)) +
 # Height of existing vegetation (NA are kept as NA)
 # Excluding NA values could introduce bias into bootstrap sample
 # Filter to points that have fewer than 40 NA values, then use 160 as the maximum number of points for resampling
+# This prevents over-sampling because few points have >160 measurements
 # Use a vector of grid_points with < 40 NA to filter the data
 ht_gp_filter <- ht_na %>% filter(count_NA < 40) %>% pull(grid_point)
 ht_df_filter <- ht_df %>% filter(grid_point %in% ht_gp_filter) %>% drop_na()
@@ -345,12 +374,40 @@ ht_boot_filter <- function(pts) {
     mutate(sampled_n = factor(pts))
 }
 
-ht_boot_mean_filter <- 
-  bind_rows(ht_boot_filter(40), ht_boot_filter(80), ht_boot_filter(100), ht_boot_filter(120), ht_boot_filter(160))
-ggplot(ht_boot_mean_filter, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
+ht_boot_filtered <- 
+  bind_rows(ht_boot_filter(20), ht_boot_filter(40), ht_boot_filter(80), ht_boot_filter(100), ht_boot_filter(120), ht_boot_filter(160))
+ggplot(ht_boot_filtered, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
   geom_line()
-ggplot(ht_boot_mean_filter, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
+ggplot(ht_boot_filtered, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
   geom_line()
+
+#### height figure NA exclude ####
+# 160 is max sampled_n because few points have >160 height measurements
+ht_boot_filtered_160 <- ht_boot_filtered %>% 
+  filter(sampled_n == 160) %>% 
+  rename(ht_boot_mean_160 = ht_boot_mean) %>% 
+  select(-ht_boot_se, -sampled_n) 
+
+ht_boot_filtered_adj <-
+  ht_boot_filtered %>% 
+  left_join(ht_boot_filtered_160, by = c("grid_point")) %>% 
+  mutate(boot_ht_mean_adj = ht_boot_mean - ht_boot_mean_160)
+
+ggplot(ht_boot_filtered_adj, aes(x = sampled_n, y = boot_ht_mean_adj)) +
+  geom_line(aes(y = boot_ht_mean_adj + ht_boot_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_line(aes(y = boot_ht_mean_adj - ht_boot_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_boxplot(outlier.size = 0.6) +
+  labs(title = "Height with NULL values excluded") +
+  theme_bgl
+
+# What are differences in SE for each group? 
+ht_boot_filtered_adj %>%
+  group_by(sampled_n) %>%
+  summarize(se_max = max(ht_boot_se), .groups = "drop") %>% 
+  filter(sampled_n %in% c(40, 80, 100, 120, 160)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
+  kable(format = "pandoc", caption = "Height with NULL values excluded")
 
 
 # Height of vegetation surface (NA = 0)
@@ -374,12 +431,39 @@ ht_boot <- function(pts) {
     mutate(sampled_n = factor(pts))
 }
 
-ht_boot_mean <- 
-  bind_rows(ht_boot(40), ht_boot(80), ht_boot(100), ht_boot(120), ht_boot(160), ht_boot(200))
-ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
+ht_boot_df <- 
+  bind_rows(ht_boot(20), ht_boot(40), ht_boot(80), ht_boot(100), ht_boot(120), ht_boot(160), ht_boot(200))
+ggplot(ht_boot_df, aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
   geom_line()
-ggplot(ht_boot_mean, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
+ggplot(ht_boot_df, aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
   geom_line()
+
+#### height figure NA replaced with 0 ####
+ht_boot_df_200 <- ht_boot_df %>% 
+  filter(sampled_n == 200) %>% 
+  rename(ht_boot_mean_200 = ht_boot_mean) %>% 
+  select(-ht_boot_se, -sampled_n) 
+
+ht_boot_df_adj <-
+  ht_boot_df %>% 
+  left_join(ht_boot_df_200, by = c("grid_point")) %>% 
+  mutate(boot_ht_mean_adj = ht_boot_mean - ht_boot_mean_200)
+
+ggplot(ht_boot_df_adj, aes(x = sampled_n, y = boot_ht_mean_adj)) +
+  geom_line(aes(y = boot_ht_mean_adj + ht_boot_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_line(aes(y = boot_ht_mean_adj - ht_boot_se, group = grid_point), color = "gray80", size = 0.05) +
+  geom_boxplot(outlier.size = 0.6) +
+  labs(title = "Height with NULL vals set to zero") +
+  theme_bgl
+
+# What are differences in SE for each group? 
+ht_boot_df_adj %>%
+  group_by(sampled_n) %>%
+  summarize(se_max = max(ht_boot_se), .groups = "drop") %>% 
+  filter(sampled_n %in% c(40, 80, 100, 120, 160)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
+  kable(format = "pandoc", caption = "Height with NULL vals set to zero")
 
 
 
@@ -527,11 +611,13 @@ fg_boot_mean_adj <-
   left_join(fg_cover_200, by = c("grid_point", "plant_native_status", "plant_life_cycle", "plant_life_form")) %>% 
   mutate(boot_pct_mean_adj = boot_pct_mean - boot_pct_mean_200)
 
-ggplot(fg_boot_mean_adj %>% filter(plant_life_cycle != "biennial" & sampled_n != 5), aes(x = sampled_n, y = boot_pct_mean_adj)) +
-  geom_line(aes(y = boot_pct_mean_adj + boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
-  geom_line(aes(y = boot_pct_mean_adj - boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray90", size = 0.05) +
+#### func grps figure ####
+ggplot(fg_boot_mean_adj %>% filter(plant_life_cycle != "biennial" & !(sampled_n %in% c(5, 10, 20))), aes(x = sampled_n, y = boot_pct_mean_adj)) +
+  geom_line(aes(y = boot_pct_mean_adj + boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray80", size = 0.05) +
+  geom_line(aes(y = boot_pct_mean_adj - boot_pct_se, group = interaction(grid_point, plant_native_status)), color = "gray80", size = 0.05) +
   geom_boxplot(aes(fill = plant_native_status), outlier.size = 0.6) +
   facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
+  labs(title = "Pct cover in functional groups") +
   theme_bgl
 
 
@@ -545,21 +631,21 @@ fg_boot_mean_adj %>%
     .groups = "drop"
   ) %>% 
   ggplot(aes(x = sampled_n, y = mean_50, group = plant_native_status)) +
-  geom_ribbon(aes(ymin = mean_50 - se_max, ymax = mean_50 + se_max, color = plant_native_status), fill = "gray90", alpha = 0.2) +
+  geom_ribbon(aes(ymin = mean_50 - se_max, ymax = mean_50 + se_max, color = plant_native_status), fill = "gray80", alpha = 0.2) +
   geom_line(aes(color = plant_native_status)) +
   geom_point(aes(color = plant_native_status)) +
   facet_grid(rows = vars(plant_life_cycle), cols = vars(plant_life_form)) +
   theme_bgl
 # native status might not be important??? 
 
-# What are differences in SE for each group? Why do they look so similar?
+# What are differences in SE for each group? 
 fg_boot_mean_adj %>%
   group_by(sampled_n, plant_native_status, plant_life_cycle, plant_life_form) %>%
   summarize(se_max = max(boot_pct_se), .groups = "drop") %>% 
-  filter(sampled_n != 5 & plant_life_cycle != "biennial") %>% 
+  filter(sampled_n %in% c(40, 80, 100, 120, 160, 200) & plant_life_cycle != "biennial") %>% 
   ungroup() %>% 
   pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
-  kable(format = "pandoc")
+  kable(format = "pandoc", caption = "SE in functional groups")
 
 
 #### Model to test sensitivity ####
