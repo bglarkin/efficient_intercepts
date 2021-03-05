@@ -27,7 +27,7 @@
 # resources aren't needed for a particular task in a notebook or Markdown document. 
 
 # Quick-loading resources
-packages_needed = c("tidyverse", "knitr", "colorspace", "rjson", "vegan") 
+packages_needed = c("tidyverse", "knitr", "colorspace", "rjson", "vegan", "parallel") 
 packages_installed = packages_needed %in% rownames(installed.packages())
 
 if (any(! packages_installed))
@@ -298,15 +298,43 @@ grcov_boot <- function(pts) {
     mutate(sampled_n = factor(pts))
 }
 
-grcov_boot_df <- 
-  bind_rows(grcov_boot(20), grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
-  glimpse()
+system.time(
+  grcov_boot_df <- 
+    bind_rows(grcov_boot(20), grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
+    glimpse()
+)
+# time: 132.616  15.739 148.841
 ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
 ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
+
+# Try parallel
+numCores <- detectCores()
+numCores
+
+grcov_boot_par <- function(pts) {
+  mclapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts, mc.cores = numCores) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), n_points)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts * 100, .groups = "drop") %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(boot_pct_mean = mean(pct_detected), boot_pct_se = sd(pct_detected), .groups = "drop") %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+system.time(
+  grcov_boot_df <- 
+    bind_rows(grcov_boot_par(20), grcov_boot_par(40), grcov_boot_par(80), grcov_boot_par(100), grcov_boot_par(120), grcov_boot_par(160), grcov_boot_par(200)) %>% 
+    glimpse()
+)
+# time: 219.103  60.724 168.149
+# Worse with parallel!
+
 
 #### ground cover figure ####
 grcov_boot_df_200 <- grcov_boot_df %>% 
@@ -647,57 +675,3 @@ fg_boot_mean_adj %>%
   pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
   kable(format = "pandoc", caption = "SE in functional groups")
 
-
-#### Model to test sensitivity ####
-# ——————————————————————————————————
-
-fg_df %>% glimpse()
-
-# Calculate cover in fg at gp
-# Filter grassland points
-# Rank points on cover, choose groups to set up dummy comparison
-fg_df %>% 
-  mutate(detected = 1) %>% 
-  group_by(grid_point) %>% 
-  summarize(pct = sum(detected) / 2, .groups = "drop") %>% 
-  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
-  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
-  arrange(-pct) 
-
-fg_df %>% 
-  mutate(detected = 1) %>% 
-  group_by(grid_point) %>% 
-  summarize(pct = sum(detected) / 2, .groups = "drop") %>% 
-  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
-  filter(type3_vegetation_indicators == "former cultivated") %>% 
-  arrange(pct)
-
-gp_meta_df$type3_vegetation_indicators %>% unique()
-
-
-# another attempt to show comparison between habitat types
-fg_boot_mean_compare <-
-  fg_boot_mean %>% 
-  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
-  filter(type3_vegetation_indicators %in% c("former cultivated", "uncultivated grassland native or degraded"),
-         plant_life_cycle == "perennial",
-         plant_life_form %in% c("forb", "graminoid"),
-         plant_native_status %in% c("native", "nonnative"))
-
-
-ggplot(fg_boot_mean_compare %>% filter(sampled_n == 200),
-       aes(x = boot_pct_mean)) +
-  geom_histogram(
-    aes(fill = type3_vegetation_indicators, color = type3_vegetation_indicators),
-    binwidth = 1,
-    center = 0.5,
-    closed = "left",
-    position = "identity",
-    alpha = 0.2
-  ) +
-  facet_grid(rows = vars(plant_life_form), cols = vars(plant_native_status))
-
-ggplot(fg_boot_mean_compare, aes(x = sampled_n, y = boot_pct_mean)) +
-  geom_boxplot(aes(fill = type3_vegetation_indicators)) +
-  facet_grid(rows = vars(plant_life_form), cols = vars(plant_native_status), scales = "free_y")
-  
