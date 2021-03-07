@@ -251,6 +251,8 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
   theme_bgl 
 
 
+#### Moving averages example ####
+# ——————————————————————————————————
 
 
 
@@ -298,43 +300,24 @@ grcov_boot <- function(pts) {
     mutate(sampled_n = factor(pts))
 }
 
-system.time(
-  grcov_boot_df <- 
-    bind_rows(grcov_boot(20), grcov_boot(40), grcov_boot(80), grcov_boot(100), grcov_boot(120), grcov_boot(160), grcov_boot(200)) %>% 
-    glimpse()
-)
-# time: 132.616  15.739 148.841
+grcov_boot_df <-
+  bind_rows(
+    grcov_boot(20),
+    grcov_boot(40),
+    grcov_boot(80),
+    grcov_boot(100),
+    grcov_boot(120),
+    grcov_boot(160),
+    grcov_boot(200)
+  ) %>%
+  glimpse()
+
 ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
 ggplot(grcov_boot_df, aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
   geom_line() +
   facet_wrap(vars(intercept_ground_code))
-
-# Try parallel
-numCores <- detectCores()
-numCores
-
-grcov_boot_par <- function(pts) {
-  mclapply(grcov_list, function(x, pts) {slice_sample(x, n = pts * 1000, replace = TRUE)}, pts = pts, mc.cores = numCores) %>%
-    bind_rows() %>%
-    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), n_points)) %>%
-    group_by(grid_point, boot_run, intercept_ground_code) %>%
-    summarize(pct_detected = sum(detected) / pts * 100, .groups = "drop") %>%
-    group_by(grid_point, intercept_ground_code) %>%
-    summarize(boot_pct_mean = mean(pct_detected), boot_pct_se = sd(pct_detected), .groups = "drop") %>%
-    ungroup() %>%
-    mutate(sampled_n = factor(pts))
-}
-
-system.time(
-  grcov_boot_df <- 
-    bind_rows(grcov_boot_par(20), grcov_boot_par(40), grcov_boot_par(80), grcov_boot_par(100), grcov_boot_par(120), grcov_boot_par(160), grcov_boot_par(200)) %>% 
-    glimpse()
-)
-# time: 219.103  60.724 168.149
-# Worse with parallel!
-
 
 #### ground cover figure ####
 grcov_boot_df_200 <- grcov_boot_df %>% 
@@ -363,6 +346,10 @@ grcov_boot_df_adj %>%
   ungroup() %>% 
   pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
   kable(format = "pandoc", caption = "Ground cover SE values")
+
+# Need to compare basal veg with YVP; something is really going on
+# Maybe just mention some numbers, this should support using both quadrats and points
+# during surveys. 
 
 
 #### Height ####
