@@ -255,6 +255,58 @@ ggplot(data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_p
 # ——————————————————————————————————
 
 
+gr_cumean_df <-
+  grcov_pull_df %>%
+  filter(
+    grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246),
+    intercept_ground_code %in% c("S", "BV", "L", "M")
+  ) %>%
+  mutate(
+    detected = 1,
+    intercept_ground_code = recode(
+      intercept_ground_code,
+      S = "soil",
+      BV = "basal veg",
+      L = "litter",
+      M = "moss"
+    )
+  ) %>%
+  rename(ground_code = intercept_ground_code) %>%
+  as_tibble() %>%
+  glimpse()
+
+n_pt <- length(unique(gr_cumean_df$grid_point))
+n_gr <- length(unique(gr_cumean_df$ground_code))
+
+gr_samp_df <- data.frame(
+  point = rep(rep(1:200, n_pt), n_gr),
+  samp_point = rep(rep(sample(1:200, replace = FALSE), n_pt), n_gr),
+  grid_point = rep(rep(unique(
+    gr_cumean_df$grid_point
+  ), each = 200), n_gr),
+  ground_code = rep(unique(gr_cumean_df$ground_code), each = n_pt * 200),
+  transect_point = rep(rep(
+    c(
+      paste0("N", 1:50),
+      paste0("E", 1:50),
+      paste0("S", 1:50),
+      paste0("W", 1:50)
+    ), n_pt
+  ), n_gr)
+) %>% as_tibble()
+
+gr_samp_df %>%
+  left_join(gr_cumean_df,
+            by = c("grid_point", "ground_code", "transect_point")) %>%
+  mutate(detected = case_when(is.na(detected) ~ 0, TRUE ~ as.numeric(detected))) %>%
+  arrange(grid_point, ground_code, samp_point) %>%
+  group_by(grid_point, ground_code) %>%
+  mutate(cummean_detected_pct = cummean(detected) * 100) %>%
+  ggplot(aes(x = samp_point, y = cummean_detected_pct, group = grid_point)) +
+  geom_step(size = 0.2) +
+  facet_wrap(vars(ground_code), scales = "free_y") +
+  labs(x = "sampled transect point", y = "percent cover") +
+  theme_bgl
 
 
 #### Ground cover ####
