@@ -662,3 +662,4 @@ fg_boot_mean_adj %>%
   pivot_wider(names_from = sampled_n, values_from = se_max, names_prefix = "se_samp_") %>% 
   kable(format = "pandoc", caption = "SE in functional groups")
 
+# check index file
