@@ -67,7 +67,6 @@ billing <- bq_test_project()
 # This file contains theme and style elements for plotting.
 source("https://drive.google.com/uc?id=1EYkUWlqsH6g-rqiu27QQsUvl4KaNPzzt")
 
-
 #### Source data ####
 # ——————————————————————————————————
 
@@ -278,7 +277,6 @@ ggplot(
 
 #### Moving averages example ####
 # ——————————————————————————————————
-
 
 gr_cumean_df <-
   grcov_pull_df %>%
@@ -963,5 +961,3 @@ fg_boot_mean_adj %>%
               values_from = se_max,
               names_prefix = "se_samp_") %>%
   kable(format = "pandoc", caption = "SE in functional groups")
-
-# check index file
