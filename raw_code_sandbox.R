@@ -67,6 +67,8 @@ billing <- bq_test_project()
 # This file contains theme and style elements for plotting.
 source("https://drive.google.com/uc?id=1EYkUWlqsH6g-rqiu27QQsUvl4KaNPzzt")
 
+read.csv(source("https://drive.google.com/uc?id=1FxbN4XvY6S91y1x9xX8fhSximVse5kFq"))
+
 #### Source data ####
 # ——————————————————————————————————
 
@@ -122,6 +124,21 @@ grcov_pull_df <-
   select(grid_point, transect_point, intercept_ground_code) %>%
   glimpse()
 
+
+# Quadrat species data
+# ————————————————————————————————————————
+# Quadrat-based species richness from 2017 (yvp)
+
+qspe_pull_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_fixed_plot_yvp.yvp_vegetation_cover`
+  WHERE (plot_loc <> 'N' OR plot_loc IS NULL)
+  AND date BETWEEN '2017-01-01' AND '2017-12-31'
+  "
+qspe_pull_bq <- bq_project_query(billing, qspe_pull_sql)
+qspe_pull_tb <- bq_table_download(qspe_pull_bq)
+qspe_pull_df <- as.data.frame(qspe_pull_tb) %>% glimpse()
 
 # Vegetation species metadata
 # ————————————————————————————————————————
@@ -200,7 +217,7 @@ sample_points <- c(200, 160, 120, 100, 80, 40)
 spe_fun = function(x) {
   data.frame(
     sample_points = factor(sample_points),
-    pred = specaccum(x, method = "exact") %>% predict(., newdata = sample_points)
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = sample_points)
   )
 }
 
@@ -247,6 +264,63 @@ example_curves <-
 names(example_curves) <- c("sample_points", example_gp)
 
 
+# Find species in YVP but not GV
+yvp_spe_mat_df <- qspe_pull_df %>% 
+  select(grid_point, subplot, key_plant_code) %>% 
+  anti_join(spe_mat_df, by = c("grid_point", "key_plant_code")) %>% 
+  mutate(detected = 1) %>% 
+  glimpse()
+
+# Control variables  for use in the loop
+yvp_grid_points <- sort(unique(yvp_spe_mat_df$grid_point))
+yvp_spe_mat_list <- vector(mode = "list", length = length(yvp_grid_points))
+names(yvp_spe_mat_list) = c(paste0("gp_", yvp_grid_points))
+
+# Create list objects for each grid point and transform objects to species-samples matrices
+for (i in 1:length(yvp_grid_points)) {
+  # filter yvp_spe_mat_df to individual grid points and pivot to a species-samples matrix
+  yvp_spe_mat_temp_df <-
+    data.frame(
+      yvp_spe_mat_df %>%
+        filter(grid_point == yvp_grid_points[i]) %>%
+        pivot_wider(
+          names_from = key_plant_code,
+          values_from = detected,
+          values_fn = min,
+          values_fill = 0
+        ) %>%
+        arrange(subplot) %>%
+        select(-grid_point),
+      row.names = 1
+    )
+  # store filtered data as list object
+  yvp_spe_mat_list[[i]] <-
+    assign(paste0("gp_", yvp_grid_points[i]),
+           yvp_spe_mat_temp_df)
+}
+
+# Create vectors of predicted richness for desired number of subplots
+subplots <- c(10, 8, 6, 4, 2)
+
+yvp_spe_fun = function(x) {
+  data.frame(
+    subplots = factor(subplots),
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = subplots)
+  )
+}
+
+# This is where the accumulations at desired points is calculated
+yvp_spe_pred <-
+  lapply(yvp_spe_mat_list, yvp_spe_fun) %>%
+  bind_rows(.id = "id") %>%
+  group_by(id) %>%
+  mutate(pred_pct = (pred / max(pred)) * 100) %>%
+  ungroup() %>%
+  separate(id,
+           into = c(NA, "grid_point"),
+           sep = "_",
+           remove = FALSE)
+
 # Results
 # ——————————————————————————————————
 
@@ -273,6 +347,12 @@ ggplot(
   geom_line(aes(linetype = grid_pt)) +
   scale_x_continuous(breaks = c(0, sample_points)) +
   theme_bgl
+
+# YVP species to add
+ggplot(yvp_spe_pred, aes(x = subplots, y = pred)) +
+  geom_boxplot()
+
+yvp_spe_pred
 
 
 #### Moving averages example ####
