@@ -414,7 +414,7 @@ gr_samp_df %>%
   theme_bgl
 
 
-#### Ground cover ####
+#### Ground cover all grid points####
 # ——————————————————————————————————
 
 # Choose ground cover types to keep
@@ -535,6 +535,105 @@ grcov_boot_df_adj %>%
 # Need to compare basal veg with YVP; something is really going on
 # Maybe just mention some numbers, this should support using both quadrats and points
 # during surveys.
+
+
+#### Ground cover grassland points only####
+# ——————————————————————————————————
+
+# Data wrangling
+# ————————————————————————————————————————
+grcov_grass_df <-
+  grcov_pull_df %>% 
+  select(-transect_point) %>% 
+  filter(grid_point %in% grass_pts)
+n_gr_points <- length(unique(grcov_grass_df$grid_point))
+gr_grcov_list <-
+  split(grcov_grass_df, factor(grcov_grass_df$grid_point))
+
+gr_grcov_boot <- function(pts) {
+  lapply(gr_grcov_list, function(x, pts) {
+    slice_sample(x, n = pts * 1000, replace = TRUE)
+  }, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:1000, each = pts), n_gr_points)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts * 100,
+              .groups = "drop") %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(
+      boot_pct_mean = mean(pct_detected),
+      boot_pct_se = sd(pct_detected),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+gr_grcov_boot_df <-
+  bind_rows(
+    gr_grcov_boot(20),
+    gr_grcov_boot(40),
+    gr_grcov_boot(80),
+    gr_grcov_boot(100),
+    gr_grcov_boot(120),
+    gr_grcov_boot(160),
+    gr_grcov_boot(200)
+  ) %>%
+  glimpse()
+
+ggplot(gr_grcov_boot_df,
+       aes(x = sampled_n, y = boot_pct_se, group = grid_point)) +
+  geom_line() +
+  facet_wrap(vars(intercept_ground_code))
+ggplot(gr_grcov_boot_df,
+       aes(x = sampled_n, y = boot_pct_mean, group = grid_point)) +
+  geom_line() +
+  facet_wrap(vars(intercept_ground_code))
+
+#### ground cover figure, grassland points ####
+gr_grcov_boot_df_200 <- gr_grcov_boot_df %>%
+  filter(sampled_n == 200) %>%
+  rename(boot_pct_mean_200 = boot_pct_mean) %>%
+  select(-boot_pct_se,-sampled_n)
+
+gr_grcov_boot_df_adj <-
+  gr_grcov_boot_df %>%
+  left_join(gr_grcov_boot_df_200,
+            by = c("grid_point", "intercept_ground_code")) %>%
+  mutate(boot_pct_mean_adj = boot_pct_mean - boot_pct_mean_200)
+
+ggplot(
+  gr_grcov_boot_df_adj %>% filter(
+    intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S"),
+    sampled_n != 20
+  ),
+  aes(x = sampled_n, y = boot_pct_mean_adj)
+) +
+  geom_line(
+    aes(y = boot_pct_mean_adj + boot_pct_se, group = grid_point),
+    color = "gray80",
+    size = 0.05
+  ) +
+  geom_line(
+    aes(y = boot_pct_mean_adj - boot_pct_se, group = grid_point),
+    color = "gray80",
+    size = 0.05
+  ) +
+  geom_boxplot(outlier.size = 0.6) +
+  labs(title = "Pct ground cover") +
+  facet_wrap(vars(intercept_ground_code)) +
+  theme_bgl
+
+# What are differences in SE for each group?
+gr_grcov_boot_df_adj %>%
+  group_by(sampled_n) %>%
+  summarize(se_max = max(boot_pct_se), .groups = "drop") %>%
+  filter(sampled_n %in% c(40, 80, 100, 120, 160, 200)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = sampled_n,
+              values_from = se_max,
+              names_prefix = "se_samp_") %>%
+  kable(format = "pandoc", caption = "Ground cover SE values")
 
 
 #### Height ####
