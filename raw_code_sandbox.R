@@ -67,8 +67,6 @@ billing <- bq_test_project()
 # This file contains theme and style elements for plotting.
 source("https://drive.google.com/uc?id=1EYkUWlqsH6g-rqiu27QQsUvl4KaNPzzt")
 
-read.csv(source("https://drive.google.com/uc?id=1FxbN4XvY6S91y1x9xX8fhSximVse5kFq"))
-
 #### Source data ####
 # ——————————————————————————————————
 
