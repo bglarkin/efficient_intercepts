@@ -32,7 +32,7 @@ packages_needed = c("tidyverse",
                     "colorspace",
                     "rjson",
                     "vegan",
-                    "parallel")
+                    "plotrix")
 packages_installed = packages_needed %in% rownames(installed.packages())
 
 if (any(!packages_installed))
@@ -67,16 +67,18 @@ billing <- bq_test_project()
 # This file contains theme and style elements for plotting.
 source("https://drive.google.com/uc?id=1EYkUWlqsH6g-rqiu27QQsUvl4KaNPzzt")
 
+# Calculating the 95% CI will aid plotting later
+ci_95 = function(x){std.error(x) * qnorm(0.975)}
+
 #### Source data ####
 # ——————————————————————————————————
 
 # Point-intercept species data
 # ————————————————————————————————————————
-# Make raw data available locally by pulling from the MPG Data Warehouse (`gpint_pull_df`),
+# Make raw data available locally by pulling from the MPG Data Warehouse,
 # and then pre-process to create two objects that will be joined with metadata and used for analysis:
-# 1. Species detections in long-form with selected fields only: `gpint_spe_df`
-# 1. `NA` values must be replaced with `360`, the code for "no vegetation", to preserve matrix dimensions and accurately reflect sampling effort in rarefaction analysis. These will be removed after transformation to a sparse matrix using `select()`
-# 1. Height data with selected fields only: `gpint_ht_df`
+# 1. Species detections in long-form with selected fields only
+# 1. Height data with selected fields only
 
 spe_pull_sql <-
   "
@@ -835,6 +837,7 @@ ht_boot_df_adj %>%
 # fg for functional groups
 
 # DON'T FILTER THE FUNCTIONAL GROUPS HERE OR THEY WILL ADD TO 100%
+# Must code detected = 0 for no veg
 
 spe_df %>% glimpse()
 spe_meta_df %>% glimpse()
@@ -978,12 +981,9 @@ fg_boot_mean %>%
              cols = vars(plant_life_form)) +
   theme_bgl
 
-
-
 # Exemplar from one point
 # Points 540, 5, 19 are good choices
 # would need data from boot runs
-
 pts_all_fg <-
   fg_df %>%
   mutate(detected = 1) %>%
@@ -1324,25 +1324,5 @@ gr_fg_boot_mean_adj %>%
               values_from = se_max,
               names_prefix = "se_samp_") %>%
   kable(format = "pandoc", caption = "SE in functional groups")
-
-
-
-
-
-
-#### Effect of downsampling on model ####
-# ——————————————————————————————————
-
-fg_boot_mean %>% 
-  filter(sampled_n == 200) %>% 
-  filter(
-      plant_native_status %in% c("native", "nonnative"),
-      plant_life_cycle %in% c("annual", "perennial"),
-      plant_life_form %in% c("graminoid", "forb", "shrub")
-    ) %>% 
-  group_by(grid_point) %>% 
-  summarize(sum_pct_cvr = sum(boot_pct_mean), .groups = "drop") %>% 
-  ggplot(aes(x = sum_pct_cvr)) +
-  geom_histogram()
 
 
