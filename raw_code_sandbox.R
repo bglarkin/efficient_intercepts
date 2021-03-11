@@ -151,7 +151,6 @@ spe_meta_bq <- bq_project_query(billing, spe_meta_sql)
 spe_meta_tb <- bq_table_download(spe_meta_bq)
 spe_meta_df <- as.data.frame(spe_meta_tb) %>% glimpse()
 
-
 # Grid point metadata
 # ————————————————————————————————————————
 gp_meta_sql <-
@@ -163,7 +162,10 @@ gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
 gp_meta_tb <- bq_table_download(gp_meta_bq)
 gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
 
-
+# Vector of grid points in grassland
+grass_pts <- gp_meta_df %>% 
+  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+  pull(grid_point)
 
 
 #### Species richness ####
