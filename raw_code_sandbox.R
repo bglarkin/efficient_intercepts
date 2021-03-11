@@ -1174,6 +1174,160 @@ fg_boot_mean_adj %>%
   kable(format = "pandoc", caption = "SE in functional groups")
 
 
+#### Pct cover in functional groups, grassland only ####
+# ——————————————————————————————————
+# Bootstrap functions and variables
+gr_fg_df <- fg_df %>% filter(grid_point %in% grass_pts)
+gr_n_points_fg <- length(unique(gr_fg_df$grid_point))
+gr_fg_list <- split(gr_fg_df, factor(gr_fg_df$grid_point))
+
+gr_fg_boot <- function(pts) {
+  lapply(gr_fg_list, function(x, pts) {
+    slice_sample(x, n = pts * 1000, replace = TRUE)
+  }, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1,
+           boot_run = rep(rep(1:1000, each = pts), gr_n_points_fg)) %>%
+    group_by(grid_point,
+             boot_run,
+             plant_native_status,
+             plant_life_cycle,
+             plant_life_form) %>%
+    summarize(pct = sum(detected) / pts * 100, .groups = "drop") %>%
+    group_by(grid_point,
+             plant_native_status,
+             plant_life_cycle,
+             plant_life_form) %>%
+    summarize(
+      boot_pct_mean = mean(pct),
+      boot_pct_se = sd(pct),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+gr_fg_boot_mean <-
+  bind_rows(
+    gr_fg_boot(5),
+    gr_fg_boot(10),
+    gr_fg_boot(20),
+    gr_fg_boot(40),
+    gr_fg_boot(80),
+    gr_fg_boot(100),
+    gr_fg_boot(120),
+    gr_fg_boot(160),
+    gr_fg_boot(200)
+  ) %>%
+  glimpse()
+
+## This is the attempt to show a mean corrected to 200 points
+gr_fg_cover_200 <- gr_fg_boot_mean %>%
+  filter(sampled_n == 200) %>%
+  rename(boot_pct_mean_200 = boot_pct_mean) %>%
+  select(-boot_pct_se,-sampled_n)
+
+gr_fg_boot_mean_adj <-
+  gr_fg_boot_mean %>%
+  left_join(
+    gr_fg_cover_200,
+    by = c(
+      "grid_point",
+      "plant_native_status",
+      "plant_life_cycle",
+      "plant_life_form"
+    )
+  ) %>%
+  mutate(boot_pct_mean_adj = boot_pct_mean - boot_pct_mean_200)
+
+#### func grps figures, grassland ####
+ggplot(
+  gr_fg_boot_mean_adj %>% 
+    filter(
+      plant_native_status %in% c("native", "nonnative"),
+      plant_life_cycle %in% c("annual", "perennial"),
+      plant_life_form %in% c("graminoid", "forb", "shrub"),
+      !(sampled_n %in% c(5, 10, 20))),
+  aes(x = sampled_n, y = boot_pct_mean_adj)
+) +
+  geom_line(
+    aes(
+      y = boot_pct_mean_adj + boot_pct_se,
+      group = interaction(grid_point, plant_native_status)
+    ),
+    color = "gray80",
+    size = 0.05
+  ) +
+  geom_line(
+    aes(
+      y = boot_pct_mean_adj - boot_pct_se,
+      group = interaction(grid_point, plant_native_status)
+    ),
+    color = "gray80",
+    size = 0.05
+  ) +
+  geom_boxplot(aes(fill = plant_native_status), outlier.size = 0.6) +
+  facet_grid(rows = vars(plant_life_cycle),
+             cols = vars(plant_life_form)) +
+  labs(title = "Pct cover in functional groups") +
+  theme_bgl
+
+gr_fg_boot_mean_adj %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub"),
+    !(sampled_n %in% c(5, 10, 20)) 
+  ) %>% 
+  group_by(sampled_n,
+           plant_native_status,
+           plant_life_cycle,
+           plant_life_form) %>%
+  summarize(
+    se_min = min(boot_pct_se),
+    mean_50 = quantile(boot_pct_mean_adj, probs = 0.50),
+    se_max = max(boot_pct_se),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = sampled_n, y = mean_50, group = plant_native_status)) +
+  geom_ribbon(
+    aes(
+      ymin = mean_50 - se_max,
+      ymax = mean_50 + se_max,
+      color = plant_native_status
+    ),
+    fill = "gray80",
+    alpha = 0.2
+  ) +
+  geom_line(aes(color = plant_native_status)) +
+  geom_point(aes(color = plant_native_status)) +
+  facet_grid(rows = vars(plant_life_cycle),
+             cols = vars(plant_life_form)) +
+  theme_bgl
+
+# What are differences in SE for each group?
+gr_fg_boot_mean_adj %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub") 
+  ) %>% 
+  group_by(sampled_n,
+           plant_native_status,
+           plant_life_cycle,
+           plant_life_form) %>%
+  summarize(se_max = max(boot_pct_se), .groups = "drop") %>%
+  filter(sampled_n %in% c(40, 80, 100, 120, 160, 200) &
+           plant_life_cycle != "biennial") %>%
+  ungroup() %>%
+  pivot_wider(names_from = sampled_n,
+              values_from = se_max,
+              names_prefix = "se_samp_") %>%
+  kable(format = "pandoc", caption = "SE in functional groups")
+
+
+
+
 
 
 #### Effect of downsampling on model ####
