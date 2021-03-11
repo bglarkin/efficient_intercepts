@@ -90,14 +90,16 @@ spe_pull_df <- as.data.frame(spe_pull_tb) %>% glimpse()
 # Note that in `spe_pull_df`, with 200 intercepts per grid point, the total number of records indicated here should not be possible. Under investigation, I found that 7 grid points contain only 199 records, so no correction to the data is possible. For this analysis, a small number of missing records should not affect the interpretation.
 
 # 1. Transform species detections to long form
-# Replace NA values with 360
+# Replace NA values with 360 STOP!
+# Don't replace NA values; this leads to a strong overabundance of NV detections!
 spe_df <-
   spe_pull_df %>%
   select(grid_point, transect_point, starts_with("intercept")) %>%
   pivot_longer(starts_with("intercept"),
                names_to = "intercept",
                values_to = "key_plant_species") %>%
-  replace_na(list(key_plant_species = 360)) %>%
+  # replace_na(list(key_plant_species = 360)) %>%
+  drop_na() %>% 
   glimpse()
 
 # 2. Produce df of height data
@@ -731,6 +733,8 @@ ht_boot_df_adj %>%
 # ——————————————————————————————————
 # fg for functional groups
 
+# DON'T FILTER THE FUNCTIONAL GROUPS HERE OR THEY WILL ADD TO 100%
+
 spe_df %>% glimpse()
 spe_meta_df %>% glimpse()
 
@@ -740,12 +744,12 @@ fg_df <- spe_df %>%
          key_plant_code,
          plant_native_status,
          plant_life_cycle,
-         plant_life_form) %>%
-  filter(
-    plant_native_status %in% c("native", "nonnative"),
-    plant_life_cycle %in% c("annual", "biennial", "perennial"),
-    plant_life_form %in% c("graminoid", "forb", "shrub")
-  )
+         plant_life_form) # %>%
+  # filter(
+  #   plant_native_status %in% c("native", "nonnative"),
+  #   plant_life_cycle %in% c("annual", "biennial", "perennial"),
+  #   plant_life_form %in% c("graminoid", "forb", "shrub")
+  # )
 
 fg_df %>% group_by(grid_point,
                    plant_native_status,
@@ -764,12 +768,11 @@ fg_df %>% group_by(grid_point,
   facet_grid(rows = vars(plant_life_cycle),
              cols = vars(plant_life_form)) +
   labs(x = "pct_cover") +
-  theme_bgl
+  theme_bw()
 
 # Bootstrap functions and variables
 n_points_fg <- length(unique(fg_df$grid_point))
 fg_list <- split(fg_df, factor(fg_df$grid_point))
-
 
 fg_boot <- function(pts) {
   lapply(fg_list, function(x, pts) {
@@ -810,19 +813,31 @@ fg_boot_mean <-
     fg_boot(200)
   ) %>%
   glimpse()
-ggplot(fg_boot_mean,
-       aes(
-         x = sampled_n,
-         y = boot_pct_se,
-         group = interaction(grid_point, plant_native_status)
-       )) +
+
+fg_boot_mean %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "biennial", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub")
+  ) %>%
+  ggplot(aes(
+    x = sampled_n,
+    y = boot_pct_se,
+    group = interaction(grid_point, plant_native_status)
+  )) +
   geom_line(aes(color = plant_native_status)) +
   facet_grid(rows = vars(plant_life_cycle),
              cols = vars(plant_life_form)) +
   labs(x = "pct_cover") +
   theme_bgl
-ggplot(fg_boot_mean,
-       aes(
+
+fg_boot_mean %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "biennial", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub")
+  ) %>%
+  ggplot(aes(
          x = sampled_n,
          y = boot_pct_mean,
          group = interaction(grid_point, plant_native_status)
@@ -833,8 +848,14 @@ ggplot(fg_boot_mean,
   labs(x = "pct_cover") +
   theme_bgl
 
-ggplot(fg_boot_mean %>% filter(grid_point %in% c(1:10)),
-       aes(x = sampled_n, y = boot_pct_mean)) +
+fg_boot_mean %>%
+  filter(
+    grid_point %in% c(1:10),
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "biennial", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub")
+  ) %>%
+  ggplot(aes(x = sampled_n, y = boot_pct_mean)) +
   geom_line(
     aes(
       y = boot_pct_mean + boot_pct_se,
@@ -856,11 +877,11 @@ ggplot(fg_boot_mean %>% filter(grid_point %in% c(1:10)),
              cols = vars(plant_life_form)) +
   theme_bgl
 
+
+
 # Exemplar from one point
 # Points 540, 5, 19 are good choices
 # would need data from boot runs
-
-
 
 pts_all_fg <-
   fg_df %>%
@@ -899,12 +920,8 @@ fg_df %>%
   summarize(pct_mean = mean(pct), pct_sd = sd(pct)) %>%
   arrange(-pct_mean, pct_sd) %>% print(n = Inf)
 
-
-
-
-
 fg_boot_runs <- function(pts) {
-  lapply(list(fg_list$`19`), function(x, pts) {
+  lapply(list(fg_list$`5`), function(x, pts) {
     slice_sample(x, n = pts * 1000, replace = TRUE)
   }, pts = pts) %>%
     bind_rows() %>%
@@ -929,6 +946,7 @@ fg_boot_example <-
     fg_boot_runs(200)
   ) %>%
   glimpse()
+
 ggplot(
   fg_boot_example %>% filter(
     plant_life_cycle == "perennial",
@@ -969,8 +987,12 @@ fg_boot_mean_adj <-
 
 #### func grps figure ####
 ggplot(
-  fg_boot_mean_adj %>% filter(plant_life_cycle != "biennial" &
-                                !(sampled_n %in% c(5, 10, 20))),
+  fg_boot_mean_adj %>% 
+    filter(
+      plant_native_status %in% c("native", "nonnative"),
+      plant_life_cycle %in% c("annual", "perennial"),
+      plant_life_form %in% c("graminoid", "forb", "shrub"),
+      !(sampled_n %in% c(5, 10, 20))),
   aes(x = sampled_n, y = boot_pct_mean_adj)
 ) +
   geom_line(
@@ -995,9 +1017,14 @@ ggplot(
   labs(title = "Pct cover in functional groups") +
   theme_bgl
 
-
 # Another way to look at the same thing
 fg_boot_mean_adj %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub"),
+    !(sampled_n %in% c(5, 10, 20)) 
+  ) %>% 
   group_by(sampled_n,
            plant_native_status,
            plant_life_cycle,
@@ -1027,6 +1054,11 @@ fg_boot_mean_adj %>%
 
 # What are differences in SE for each group?
 fg_boot_mean_adj %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub") 
+  ) %>% 
   group_by(sampled_n,
            plant_native_status,
            plant_life_cycle,
@@ -1039,3 +1071,23 @@ fg_boot_mean_adj %>%
               values_from = se_max,
               names_prefix = "se_samp_") %>%
   kable(format = "pandoc", caption = "SE in functional groups")
+
+
+
+
+#### Effect of downsampling on model ####
+# ——————————————————————————————————
+
+fg_boot_mean %>% 
+  filter(sampled_n == 200) %>% 
+  filter(
+      plant_native_status %in% c("native", "nonnative"),
+      plant_life_cycle %in% c("annual", "perennial"),
+      plant_life_form %in% c("graminoid", "forb", "shrub")
+    ) %>% 
+  group_by(grid_point) %>% 
+  summarize(sum_pct_cvr = sum(boot_pct_mean), .groups = "drop") %>% 
+  ggplot(aes(x = sum_pct_cvr)) +
+  geom_histogram()
+
+
