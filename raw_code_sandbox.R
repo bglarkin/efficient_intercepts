@@ -3,29 +3,10 @@
 # Script initiated on 2021-02-23, BL
 
 
-#### Description ####
-# ——————————————————————————————————
-
-
-#### Security ####
-# ——————————————————————————————————
-
-# Before running the notebook,
-# * the user must load a `json` file containing the BigQuery API key into the local directory `/content/...`
-# * the user must load a `json` file containing the Google Maps API key into the local directory `/content/...`
-#
-# Keeping these keys out of this notebook is important for security.
-
-
 #### Tools ####
 # ——————————————————————————————————
-
 # Package and library installation
 # ————————————————————————————————————————
-# Divide package and library installs into separate chunks to speed loading
-# when adding new resources "on the fly". This saves time when slow-loading
-# resources aren't needed for a particular task in a notebook or Markdown document.
-
 # Quick-loading resources
 packages_needed = c("tidyverse",
                     "knitr",
@@ -57,7 +38,7 @@ for (i in 1:length(packages_needed)) {
 # Users must have API key for Google Big Query
 
 # Big Query API Key (local file)
-bq_auth(path = "/content/mpg-data-warehouse-api_key-master.json")
+bq_auth()
 Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
 billing <- bq_test_project()
 

@@ -3,3 +3,283 @@ Vegetation Survey at MPG Ranch: Efficiency and Recommendations
 Beau Larkin
 2021-03-06
 
+-   [Description](#description)
+-   [Resources](#resources)
+-   [Source data](#source-data)
+
+# Description
+
+On February 27, 2020, Rebecca Durham, Craig Jourdonnais, Beau Larkin,
+Dean Pearson, Phil Ramsey, and Mike McTee began a discussion about
+whether our vegetation survey methods need revision. After that meeting,
+we identified several needs for additional investigation and discussion.
+\*
+[link](https://docs.google.com/document/d/1yCLPai5r4z5nxyimmbRF-I2Gugzn_jgBFV2wpemR0IM/edit?usp=sharing)
+to meeting notes from 2020-02-27 \*
+[link](https://docs.google.com/document/d/11Ec4hUrRYN9f24CrEPM5Ui3ec9SzbcOIuwKdRoc0v7A/edit?usp=sharing)
+to report on proposed revisions to vegetation survey methods
+
+This document is intended to curate the code, analysis, and results
+presented in the report on proposed revisions to vegetation methods.
+
+# Resources
+
+## Package and library installation
+
+``` r
+## Quick-loading resources
+packages_needed = c("tidyverse", "knitr", "rjson", "vegan", "plotrix")
+packages_installed = packages_needed %in% rownames(installed.packages())
+if (any(!packages_installed))
+  install.packages(packages_needed[!packages_installed])
+for (i in 1:length(packages_needed)) {
+  library(packages_needed[i], character.only = T)
+}
+```
+
+    ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──
+
+    ## ✓ ggplot2 3.3.3     ✓ purrr   0.3.4
+    ## ✓ tibble  3.1.0     ✓ dplyr   1.0.5
+    ## ✓ tidyr   1.1.3     ✓ stringr 1.4.0
+    ## ✓ readr   1.4.0     ✓ forcats 0.5.1
+
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+    ## Loading required package: permute
+
+    ## Loading required package: lattice
+
+    ## This is vegan 2.5-7
+
+``` r
+## Big R Query (slow loading)
+packages_needed = c("bigrquery") # comma delimited vector of package names
+packages_installed = packages_needed %in% rownames(installed.packages())
+if (any(!packages_installed))
+  install.packages(packages_needed[!packages_installed])
+for (i in 1:length(packages_needed)) {
+  library(packages_needed[i], character.only = T)
+}
+```
+
+## API keys
+
+API keys for data access are pulled from local resources and are not
+available in the hosted environment. Code not shown here.
+
+## Global functions and styles
+
+``` r
+## Load text file of styles from Google Drive
+source(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$stylesKey)
+
+## Calculating the 95% CI will aid plotting later
+## Uses `plotrix`
+ci_95 = function(x){std.error(x) * qnorm(0.975)}
+```
+
+# Source data
+
+## Point-intercept species data
+
+Make raw data available locally by pulling from the MPG Data Warehouse
+and then pre-process to create two objects that will be joined with
+metadata and used for analysis
+
+``` r
+spe_pull_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_point_intercept_gridVeg.gridVeg_point_intercept_vegetation`
+  WHERE year = 2016
+  "
+spe_pull_bq <- bq_project_query(billing, spe_pull_sql)
+spe_pull_tb <- bq_table_download(spe_pull_bq)
+spe_pull_df <- as.data.frame(spe_pull_tb) %>% glimpse()
+```
+
+    ## Rows: 114,193
+    ## Columns: 10
+    ## $ survey_ID          <chr> "012C5FAD-2451-41B0-9E2F-432D1ECEB55C", "012C5FAD-2…
+    ## $ grid_point         <int> 285, 285, 285, 285, 285, 285, 285, 285, 285, 285, 2…
+    ## $ date               <date> 2016-05-31, 2016-05-31, 2016-05-31, 2016-05-31, 20…
+    ## $ year               <int> 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 201…
+    ## $ transect_point     <chr> "S31", "W39", "E50", "S17", "N10", "N34", "N21", "S…
+    ## $ height_intercept_1 <dbl> 12, 10, 25, 15, 10, 15, 20, 22, 30, 20, 40, 40, 30,…
+    ## $ intercept_1        <int> 428, 415, 428, 307, 308, 307, 428, 428, 141, 428, 4…
+    ## $ intercept_2        <int> NA, 82, 82, 428, NA, NA, NA, 82, NA, NA, 411, NA, 1…
+    ## $ intercept_3        <int> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, 82,…
+    ## $ intercept_4        <int> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
+
+Note that in `spe_pull_df`, with 200 intercepts per grid point, the
+total number of records indicated here should not be possible. Under
+investigation, I found that 7 grid points contain only 199 records, so
+no correction to the data is possible. For this analysis, a small number
+of missing records should not affect the interpretation. \#\#\# Species
+data must be transformed to long-form to enable filtering
+
+``` r
+spe_df <-
+  spe_pull_df %>%
+  select(grid_point, transect_point, starts_with("intercept")) %>%
+  pivot_longer(starts_with("intercept"),
+               names_to = "intercept",
+               values_to = "key_plant_species") %>%
+  # replace_na(list(key_plant_species = 360)) %>%
+  drop_na() %>% 
+  glimpse()
+```
+
+    ## Rows: 163,725
+    ## Columns: 4
+    ## $ grid_point        <int> 285, 285, 285, 285, 285, 285, 285, 285, 285, 285, 28…
+    ## $ transect_point    <chr> "S31", "W39", "W39", "E50", "E50", "S17", "S17", "N1…
+    ## $ intercept         <chr> "intercept_1", "intercept_1", "intercept_2", "interc…
+    ## $ key_plant_species <int> 428, 415, 82, 428, 82, 307, 428, 308, 307, 428, 428,…
+
+### Height data must be stripped from species data frame to use separately
+
+``` r
+ht_df <-
+  spe_pull_df %>%
+  select(grid_point, transect_point, height_intercept_1) %>%
+  glimpse()
+```
+
+    ## Rows: 114,193
+    ## Columns: 3
+    ## $ grid_point         <int> 285, 285, 285, 285, 285, 285, 285, 285, 285, 285, 2…
+    ## $ transect_point     <chr> "S31", "W39", "E50", "S17", "N10", "N34", "N21", "S…
+    ## $ height_intercept_1 <dbl> 12, 10, 25, 15, 10, 15, 20, 22, 30, 20, 40, 40, 30,…
+
+## Point-intercept ground cover data
+
+Wrangling will be handled later during analysis
+
+``` r
+grcov_pull_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_point_intercept_gridVeg.gridVeg_point_intercept_ground`
+  WHERE year = 2016
+  "
+grcov_pull_bq <- bq_project_query(billing, grcov_pull_sql)
+grcov_pull_tb <- bq_table_download(grcov_pull_bq)
+grcov_pull_df <-
+  as.data.frame(grcov_pull_tb) %>%
+  select(grid_point, transect_point, intercept_ground_code) %>%
+  glimpse()
+```
+
+    ## Rows: 114,193
+    ## Columns: 3
+    ## $ grid_point            <int> 285, 285, 285, 285, 285, 285, 285, 285, 285, 285…
+    ## $ transect_point        <chr> "N34", "N21", "E50", "S19", "E24", "W28", "N43",…
+    ## $ intercept_ground_code <chr> "G", "L", "L", "L", "BV", "BV", "L", "L", "L", "…
+
+## Quadrat-based species data
+
+The quadrat data comes from the survey known as “YVP”. It is used here
+to demonstrate how many species may be recovered by combining
+point-intercept and quadrat methods.
+
+``` r
+qspe_pull_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_fixed_plot_yvp.yvp_vegetation_cover`
+  WHERE (plot_loc <> 'N' OR plot_loc IS NULL)
+  AND date BETWEEN '2017-01-01' AND '2017-12-31'
+  "
+qspe_pull_bq <- bq_project_query(billing, qspe_pull_sql)
+qspe_pull_tb <- bq_table_download(qspe_pull_bq)
+qspe_pull_df <- as.data.frame(qspe_pull_tb) %>% glimpse()
+```
+
+    ## Rows: 3,267
+    ## Columns: 9
+    ## $ plot_code         <chr> "YVP 468", "YVP 468", "YVP 468", "YVP 468", "YVP 468…
+    ## $ plot_loc          <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+    ## $ plot_rep          <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+    ## $ grid_point        <int> 468, 468, 468, 468, 468, 468, 468, 468, 468, 468, 46…
+    ## $ date              <date> 2017-07-06, 2017-07-06, 2017-07-06, 2017-07-06, 201…
+    ## $ subplot           <int> 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3…
+    ## $ key_plant_species <int> 745, 14, 199, 230, 297, 406, 410, 434, 14, 113, 199,…
+    ## $ key_plant_code    <chr> "AGRO_SP", "AGRSTO", "ELYREP", "EUPESU", "LEUVUL", "…
+    ## $ cover_pct         <dbl> 4, 4, 20, 20, 3, 15, 30, 2, 3, 5, 10, 15, 3, 20, 35,…
+
+## Vegetation species metadata
+
+This dataset contains plant functional groups and other metadata
+associated with plant species.
+
+``` r
+spe_meta_sql <-
+  "
+  SELECT key_plant_species, key_plant_code, plant_native_status, plant_life_cycle, plant_life_form, plant_name_sci, plant_name_common
+  FROM `mpg-data-warehouse.vegetation_species_metadata.vegetation_species_metadata`
+  "
+spe_meta_bq <- bq_project_query(billing, spe_meta_sql)
+spe_meta_tb <- bq_table_download(spe_meta_bq)
+spe_meta_df <- as.data.frame(spe_meta_tb) %>% glimpse()
+```
+
+    ## Rows: 754
+    ## Columns: 7
+    ## $ key_plant_species   <int> 655, 650, 571, 82, 530, 78, 687, 39, 489, 620, 373…
+    ## $ key_plant_code      <chr> "VENDUB", "ZIZPAL", "VULOCT", "BROTEC", "TRIAES", …
+    ## $ plant_native_status <chr> "nonnative", "native", "native", "nonnative", "non…
+    ## $ plant_life_cycle    <chr> "annual", "annual", "annual", "annual", "annual", …
+    ## $ plant_life_form     <chr> "graminoid", "graminoid", "graminoid", "graminoid"…
+    ## $ plant_name_sci      <chr> "Ventenata dubia", "Zizania palustris", "Vulpia oc…
+    ## $ plant_name_common   <chr> "North Africa grass", "northern wildrice", "sixwee…
+
+## Grid point metadata
+
+This dataset contains habitat types and spatial metadata for grid
+points.
+
+``` r
+gp_meta_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
+  "
+gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
+gp_meta_tb <- bq_table_download(gp_meta_bq)
+gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
+```
+
+    ## Rows: 582
+    ## Columns: 16
+    ## $ grid_point                  <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,…
+    ## $ lat                         <dbl> 46.73193, 46.72972, 46.72443, 46.72487, 46…
+    ## $ long                        <dbl> -114.0017, -114.0010, -114.0227, -114.0195…
+    ## $ aspect_mean_deg             <dbl> 334.7050, 45.3030, 221.3340, 290.4890, 288…
+    ## $ aspect_direction            <chr> "NNW", "NE", "SW", "WNW", "WNW", "WNW", "W…
+    ## $ aspect_northness            <dbl> 0.9041197, 0.7033575, -0.7508724, 0.350027…
+    ## $ aspect_eastness             <dbl> -0.4272792, 0.7108363, -0.6604474, -0.9367…
+    ## $ elevation_mean_m            <dbl> 1395.64, 1456.09, 1126.90, 1166.33, 1179.5…
+    ## $ slope_mean_deg              <dbl> 28.44230, 12.22630, 4.25130, 2.68361, 4.26…
+    ## $ cover_type_2016_gridVeg     <chr> "woodland/forest", "non-irrigated grasslan…
+    ## $ biomass_habitat_type        <chr> NA, "Range", "Range", "Range", "Range", "R…
+    ## $ type1_biome                 <chr> "forest", "rangeland", "rangeland", "range…
+    ## $ type2_vegetation_community  <chr> "upland", "grassland", "grassland", "grass…
+    ## $ type3_vegetation_indicators <chr> "mixed canopy conifer", "uncultivated gras…
+    ## $ type4_indicators_history    <chr> "mixed canopy conifer", "uncultivated gras…
+    ## $ mgmt_unit_habitat           <chr> "conifer_forest", "grassland_native__invad…
+
+### Vector of grid points in grassland
+
+This is an additional grid point metadata item. It is useful for quickly
+filtering grid points to grassland habitats without having to use
+`left_join()` to associate metadata with vegetation data.
+
+``` r
+grass_pts <- gp_meta_df %>% 
+  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+  pull(grid_point)
+```
