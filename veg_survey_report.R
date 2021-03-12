@@ -339,7 +339,7 @@ ggplot(spe_pred %>%
          drop_na(), 
        aes(x = sample_points, y = pred_pct)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "species (pct of total)", title = "Species rarefaction at all grid points") +
+  labs(x = "point intercepts (n)", y = "species (pct of total)") +
   theme_bgl
 
 #' At 100 point intercepts, predicted median species richness drops 18.3% (table)
@@ -352,19 +352,13 @@ spe_pred %>%
   rename(point_intercepts = sample_points) %>%
   kable(format = "pandoc")
 
-## Figure showing percent of total richness at uncultivated grassland points
-ggplot(spe_pred %>% 
-         drop_na() %>% 
-         filter(grid_point %in% grass_pts),
-       aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "species (pct of total)", title = "Species rarefaction at grid points in grassland") +
-  theme_bgl
+#' With the data filtered to only uncultivated grassland habitat, the pattern is similar, so it isn't shown here.
+#' The decrease in species richness with rarefaction to fewer point intercepts is similar in trend and magnitude.
 
-#' In grassland habitat, predicted richness drops a little more than 20% when only 100 point intercepts are 
-#' included in the rarefaction analysis (not shown).
-#' 
-#' The quadrat survey can potentially add some species that were not detected by point-intercept methods. 
+#' ### Contribution of quadrats to point-intercept data
+#'
+#' The quadrat survey can potentially add more species than were missed by point-intercept methods at 
+#' rarefaction to 100 point intercepts. 
 #' With some caveats (data from 2017 instead of 2016, surveys occurred on different days-of-the-year, etc.), 
 #' it appears that adding four 1x1 meter frames to a point-intercept survey would likely add six to possibly 
 #' a dozen species. 
@@ -430,7 +424,7 @@ gr_samp_df <- data.frame(
       paste0("W", 1:50)
     ), n_pt
   ), n_gr)
-) %>% as_tibble()
+)
 
 gr_samp_df %>%
   left_join(gr_cumean_df,
@@ -449,4 +443,85 @@ gr_samp_df %>%
 #' stable range after about 50 intercept points are measured. Does this mean that we could 
 #' obtain satisfactory data with fewer intercept points?
 
+
+#' ## Bootstrapped means and CIs of ground cover 
+#' A resampling approach is used to create bootstrapped means and confidence intervals
+#' of percent ground cover. 
+#' 
+#' ### Data wrangling and analysis
+#' The ground cover data are split into a list with one list element for each grid point.
+#' Then, the grid point data are resampled to a selected number of intercepts in a 
+#' function, using `lapply()`. 
+
+n_points <- length(unique(grcov_pull_df$grid_point))
+grcov_list <-
+  split(grcov_pull_df %>% select(-transect_point),
+        factor(grcov_pull_df$grid_point))
+
+grcov_boot <- function(pts, B) {
+  lapply(grcov_list, function(x, pts, B) {
+    slice_sample(x, n = pts * B, replace = TRUE)
+  }, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:B, each = pts), n_points)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts * 100,
+              .groups = "drop") %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(
+      boot_pct_mean = mean(pct_detected),
+      boot_pct_se = sd(pct_detected),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+B <- 1000
+grcov_boot_df <-
+  bind_rows(
+    grcov_boot(40, B),
+    grcov_boot(80, B),
+    grcov_boot(100, B),
+    grcov_boot(120, B),
+    grcov_boot(160, B),
+    grcov_boot(200, B)
+  ) %>%
+  glimpse()
+
+#' ### Results
+#' Similar to the species richness rarefaction, an inflection point appears at 80 point intercepts. Above
+#' that, the confidence interval decreases in a linear fashion to its value at 200 point intercepts.
+#' With fewer than 80 point intercepts, the confidence interval increases rapidly. 
+
+grcov_boot_summary <-
+  grcov_boot_df %>%
+  filter(intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS")) %>%
+  group_by(intercept_ground_code, sampled_n) %>%
+  summarize(
+    boot_mean = mean(boot_pct_mean),
+    boot_ci = max(boot_pct_se) * qnorm(0.975),
+    .groups = "drop") 
+
+ggplot(grcov_boot_summary, aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
+  geom_ribbon(aes(ymin = boot_mean - boot_ci, ymax = boot_mean + boot_ci), fill = "gray90", color = "gray20", linetype = "dashed", size = 0.4) +
+  geom_line(aes(y = boot_mean), color = "gray20", size = 0.4) +
+  labs(x = "point intercepts (n)", y = "percent cover") +
+  facet_wrap(vars(intercept_ground_code), scales = "free_y") +
+  theme_bgl
+
+#' Confidence intervals range from about about 6 to 7.5 with 200 point intercepts used in the
+#' bootstrap resample. The numbers can change a little if the resampling is repeated, but the 
+#' magnitude and range won't change much. With resampling down to 100 point intercepts, the 
+#' confidence interval increases by ~30-50 percent. 
+
+grcov_boot_summary %>%
+  mutate(boot_ci = round(boot_ci, 2)) %>% 
+  select(-boot_mean) %>% 
+  pivot_wider(names_from = sampled_n,
+              values_from = boot_ci,
+              names_prefix = "ci_samp_") %>% 
+  select(intercept_ground_code, ci_samp_200, ci_samp_100) %>%
+  mutate(pct_change = (((ci_samp_100 - ci_samp_200) / ci_samp_200)) %>% round(., 2)) %>% 
+  kable(format = "pandoc")
 

@@ -20,6 +20,8 @@ Beau Larkin
     richness](#survey-efficiency-species-richness)
     -   [Data wrangling and analysis](#data-wrangling-and-analysis)
     -   [Results](#results)
+-   [Ground cover](#ground-cover)
+    -   [Example and motivation](#example-and-motivation)
 
 # Description
 
@@ -136,10 +138,10 @@ of missing records should not affect the interpretation.
 
 ### Species data must be transformed to long-form to enable filtering
 
-T code “NV” or “no vegetation” is present and may be treated as a
-species unless removed or treated differently. NV should be removed for
-species richness calculations, but should be retained for functional
-group cover calculations.
+The code “NV” or “no vegetation” may be treated as a species unless
+removed or treated differently. NV should be removed for species
+richness calculations, but should be retained for functional group cover
+calculations.
 
 In the imported data, many NA values exist in intercept hits 2-4. These
 aren’t coded “NV”. These NA values are treated differently depending on
@@ -500,8 +502,9 @@ ggplot(
 
 ### Species richness vs. survey effort
 
-Predicted species richness declines with a decreasing number of
-intercept points measured at a survey location. The decline is
+Species richness in the point-intercept survey data ranges from 2 to 55.
+Species richness predicted by rarefaction declines with a decreasing
+number of intercept points measured at a survey location. The decline is
 approximately linear from 200 to 80 intercept points, and then falls
 more steeply after a point of inflection at 80 intercept points. For
 this figure, species richness is shown as a percent of the total for
@@ -542,28 +545,17 @@ spe_pred %>%
 | 160               |                   94.1 |
 | 200               |                  100.0 |
 
-``` r
-## Figure showing percent of total richness at uncultivated grassland points
-ggplot(spe_pred %>% 
-         drop_na() %>% 
-         filter(grid_point %in% grass_pts),
-       aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "species (pct of total)") +
-  theme_bgl
-```
+With the data filtered to only uncultivated grassland habitat, the
+pattern is similar, so it isn’t shown here. The decrease in species
+richness with rarefaction to fewer point intercepts is similar in trend
+and magnitude. \#\#\# Contribution of quadrats to point-intercept data
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
-
-In grassland habitat, predicted richness drops a little more than 20%
-when only 100 point intercepts are included in the rarefaction analysis
-(not shown).
-
-The quadrat survey can potentially add some species that were not
-detected by point-intercept methods. With some caveats (data from 2017
-instead of 2016, surveys occurred on different days-of-the-year, etc.),
-it appears that adding four 1x1 meter frames to a point-intercept survey
-would likely add six to possibly a dozen species.
+The quadrat survey can potentially add more species than were missed by
+point-intercept methods at rarefaction to 100 point intercepts. With
+some caveats (data from 2017 instead of 2016, surveys occurred on
+different days-of-the-year, etc.), it appears that adding four 1x1 meter
+frames to a point-intercept survey would likely add six to possibly a
+dozen species.
 
 ``` r
 # Rarefaction of quadrat data
@@ -597,3 +589,185 @@ spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
     ##   <fct>            <dbl>
     ## 1 100               15.9
     ## 2 200               20
+
+# Ground cover
+
+## Example and motivation
+
+Percent cover of vegetative and abiotic ground cover is a primary
+response variable desired from the point-intercept survey. To explore
+the efficiency of our methods, an easy first step is to produce a moving
+average of ground cover in common classes within a few grid points.
+Here, eleven points were arbitrarily chosen and moving averages of
+ground cover calculated.
+
+``` r
+gr_cumean_df <-
+  grcov_pull_df %>%
+  filter(
+    grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246),
+    intercept_ground_code %in% c("S", "BV", "L", "M")
+  ) %>%
+  mutate(
+    detected = 1,
+    intercept_ground_code = recode(
+      intercept_ground_code,
+      S = "soil",
+      BV = "basal veg",
+      L = "litter",
+      M = "moss"
+    )
+  ) %>%
+  rename(ground_code = intercept_ground_code)
+
+n_pt <- length(unique(gr_cumean_df$grid_point))
+n_gr <- length(unique(gr_cumean_df$ground_code))
+
+gr_samp_df <- data.frame(
+  point = rep(rep(1:200, n_pt), n_gr),
+  samp_point = rep(rep(sample(1:200, replace = FALSE), n_pt), n_gr),
+  grid_point = rep(rep(unique(
+    gr_cumean_df$grid_point
+  ), each = 200), n_gr),
+  ground_code = rep(unique(gr_cumean_df$ground_code), each = n_pt * 200),
+  transect_point = rep(rep(
+    c(
+      paste0("N", 1:50),
+      paste0("E", 1:50),
+      paste0("S", 1:50),
+      paste0("W", 1:50)
+    ), n_pt
+  ), n_gr)
+)
+
+gr_samp_df %>%
+  left_join(gr_cumean_df,
+            by = c("grid_point", "ground_code", "transect_point")) %>%
+  mutate(detected = case_when(is.na(detected) ~ 0, TRUE ~ as.numeric(detected))) %>%
+  arrange(grid_point, ground_code, samp_point) %>%
+  group_by(grid_point, ground_code) %>%
+  mutate(cummean_detected_pct = cummean(detected) * 100) %>%
+  ggplot(aes(x = samp_point, y = cummean_detected_pct, group = grid_point)) +
+  geom_step(size = 0.2) +
+  facet_wrap(vars(ground_code), scales = "free_y") +
+  labs(x = "point intercepts", y = "percent cover") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+
+Cumulative averages in these ground cover classes flatten quickly,
+reaching a narrow and stable range after about 50 intercept points are
+measured. Does this mean that we could obtain satisfactory data with
+fewer intercept points? \#\# Bootstrapped means and CIs of ground cover
+A resampling approach is used to create bootstrapped means and
+confidence intervals of percent ground cover.
+
+### Data wrangling and analysis
+
+The ground cover data are split into a list with one list element for
+each grid point. Then, the grid point data are resampled to a selected
+number of intercepts in a function, using `lapply()`.
+
+``` r
+n_points <- length(unique(grcov_pull_df$grid_point))
+grcov_list <-
+  split(grcov_pull_df %>% select(-transect_point),
+        factor(grcov_pull_df$grid_point))
+
+grcov_boot <- function(pts, B) {
+  lapply(grcov_list, function(x, pts) {
+    slice_sample(x, n = pts * B, replace = TRUE)
+  }, pts = pts) %>%
+    bind_rows() %>%
+    mutate(detected = 1, boot_run = rep(rep(1:B, each = pts), n_points)) %>%
+    group_by(grid_point, boot_run, intercept_ground_code) %>%
+    summarize(pct_detected = sum(detected) / pts * 100,
+              .groups = "drop") %>%
+    group_by(grid_point, intercept_ground_code) %>%
+    summarize(
+      boot_pct_mean = mean(pct_detected),
+      boot_pct_se = sd(pct_detected),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+B <- 1000
+grcov_boot_df <-
+  bind_rows(
+    grcov_boot(40, B),
+    grcov_boot(80, B),
+    grcov_boot(100, B),
+    grcov_boot(120, B),
+    grcov_boot(160, B),
+    grcov_boot(200, B)
+  ) %>%
+  glimpse()
+```
+
+    ## Rows: 27,264
+    ## Columns: 5
+    ## $ grid_point            <int> 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, …
+    ## $ intercept_ground_code <chr> "BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS…
+    ## $ boot_pct_mean         <dbl> 6.247228, 3.530246, 3.370787, 11.538850, 5.30769…
+    ## $ boot_pct_se           <dbl> 3.3496514, 1.6790352, 1.4771688, 5.0430725, 2.82…
+    ## $ sampled_n             <fct> 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, …
+
+### Results
+
+Similar to the species richness rarefaction, an inflection point appears
+at 80 point intercepts. Above that, the confidence interval decreases in
+a linear fashion to its value at 200 point intercepts. With fewer than
+80 point intercepts, the confidence interval increases rapidly.
+
+``` r
+grcov_boot_summary <-
+  grcov_boot_df %>%
+  filter(intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS")) %>%
+  group_by(intercept_ground_code, sampled_n) %>%
+  summarize(
+    boot_mean = mean(boot_pct_mean),
+    boot_ci = max(boot_pct_se) * qnorm(0.975),
+    .groups = "drop") 
+
+ggplot(grcov_boot_summary, aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
+  geom_ribbon(aes(ymin = boot_mean - boot_ci, ymax = boot_mean + boot_ci), fill = "gray90", color = "gray20", linetype = "dashed", size = 0.4) +
+  geom_line(aes(y = boot_mean), color = "gray20", size = 0.4) +
+  labs(x = "point intercepts (n)", y = "percent cover") +
+  facet_wrap(vars(intercept_ground_code), scales = "free_y") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+
+Confidence intervals range from about about 6 to 7.25 with 200 point
+intercepts used in the bootstrap resample. The numbers can change a
+little if the resampling is repeated, but the magnitude and range won’t
+change much. With resampling down to 100 point intercepts, the
+confidence interval increases by 38-47 percent.
+
+``` r
+grcov_boot_summary %>%
+  mutate(boot_ci = round(boot_ci, 2)) %>% 
+  select(-boot_mean) %>% 
+  pivot_wider(names_from = sampled_n,
+              values_from = boot_ci,
+              names_prefix = "ci_samp_") %>% 
+  select(intercept_ground_code, ci_samp_200, ci_samp_100) %>%
+  mutate(pct_change = (((ci_samp_100 - ci_samp_200) / ci_samp_200)) %>% round(., 2)) %>% 
+  kable(format = "pandoc")
+```
+
+| intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
+|:------------------------|--------------:|--------------:|------------:|
+| BG                      |          6.25 |          9.00 |        0.44 |
+| BV                      |          7.22 |         10.14 |        0.40 |
+| G                       |          6.92 |          9.83 |        0.42 |
+| L                       |          7.43 |         10.34 |        0.39 |
+| LIC                     |          6.87 |          9.37 |        0.36 |
+| M                       |          7.24 |         10.06 |        0.39 |
+| R                       |          6.86 |          9.99 |        0.46 |
+| S                       |          7.03 |          9.91 |        0.41 |
+| WDS                     |          6.55 |          8.53 |        0.30 |
