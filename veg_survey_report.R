@@ -14,7 +14,7 @@
 #' After that meeting, we identified several needs for additional investigation and discussion.
 #' 
 #' * [link](https://docs.google.com/document/d/1yCLPai5r4z5nxyimmbRF-I2Gugzn_jgBFV2wpemR0IM/edit?usp=sharing) to meeting notes from 2020-02-27
-#' * [link](https://docs.google.com/document/d/11Ec4hUrRYN9f24CrEPM5Ui3ec9SzbcOIuwKdRoc0v7A/edit?usp=sharing) to report on proposed revisions to vegetation survey methods
+#' * [link](https://docs.google.com/document/d/1UfM6ueUNCGtW0-PY8FUWc7vRSBwrFTfDtZdI5gUv35s/edit?usp=sharing) to report on proposed revisions to vegetation survey methods
 #' 
 #' This document is intended to curate the code, analysis, and results presented in the report on 
 #' proposed revisions to vegetation methods.
@@ -155,11 +155,12 @@ grass_pts <- gp_meta_df %>%
   pull(grid_point)
 
 
-
-
-
 #' # Survey efficiency: species richness
-#' ## Data wrangling
+#' 
+#' ## Data wrangling and analysis
+#' 
+#' ### Point-intercept data
+#' 
 #' The species data must be transformed into samples-species matrices for each grid point. `Split()` 
 #' facilitates this by separating each grid point into a separate list object. The resulting list is then
 #' passed to a function with `lapply()` to create the samples-species matrices. 
@@ -180,7 +181,7 @@ spe_list<-
   left_join(spe_meta_df %>% select(key_plant_species, key_plant_code), by = "key_plant_species") %>%
   select(-key_plant_species) %>%
   mutate(detected = 1) %>%
-  split(paste0("gp_", factor(spe_mat_df$grid_point)))
+  split(paste0("gp_", factor(spe_df$grid_point)))
 
 spe_mat_list <-
   lapply(spe_list, function(x) {
@@ -221,6 +222,73 @@ spe_pred <-
   ungroup() %>%
   separate(id, into = c(NA, "grid_point"), sep = "_", remove = FALSE)
 
+#' ### Quadrat data
+#' The rarefaction of species data from point-intercept surveys can be compared with a similar
+#' analysis of quadrat-based survey data. Quadrat methods have detected different suites of species than 
+#' point-intercept methods have [report](https://docs.google.com/document/d/1UfM6ueUNCGtW0-PY8FUWc7vRSBwrFTfDtZdI5gUv35s/edit?usp=sharing),
+#' suggesting that it may be advisable to combine quadrats with point-intercepts. To investigate this, a 
+#' rarefaction is also performed with the quadrat data (`qspe`), but before rarefying, the species are filtered 
+#' to include only those which were detected by quadrats but not by point-intercepts. The results will show how
+#' many species might be added to point-intercept surveys by the number of quadrats added.
+
+## The code here closely follows the previous code for point-intercept data,
+## but because some column names and other variables differ slightly, 
+## the functions are repeated with slight edits insetad of being handled 
+## programatically. 
+qspe_filter <-
+  qspe_pull_df %>% 
+  select(grid_point, subplot, key_plant_species, key_plant_code) %>% 
+  anti_join(spe_df, by = c("grid_point", "key_plant_species")) %>% 
+  select(-key_plant_species) %>% 
+  mutate(detected = 1)
+  
+qspe_list <-  
+  split(qspe_filter, paste0("gp_", factor(qspe_filter$grid_point)))
+
+qspe_mat_list <-
+  lapply(qspe_list, function(x) {
+    data.frame(
+      x %>%
+        pivot_wider(
+          names_from = key_plant_code,
+          values_from = detected,
+          values_fn = min,
+          values_fill = 0
+        ) %>%
+        arrange(subplot) %>%
+        select(-grid_point),
+      row.names = 1
+    )
+  })
+
+## Rarefy species for desired number of quadrats
+quads <- c(10, 8, 6, 4, 2)
+
+qspe_fun = function(x) {
+  data.frame(
+    quads = factor(quads),
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = quads)
+  )
+}
+
+## This is where the accumulations at desired points is calculated
+qspe_pred <-
+  lapply(qspe_mat_list, qspe_fun) %>%
+  bind_rows(.id = "id") %>%
+  group_by(id) %>%
+  mutate(pred_pct = (pred / max(pred)) * 100) %>%
+  ungroup() %>%
+  separate(id,
+           into = c(NA, "grid_point"),
+           sep = "_",
+           remove = FALSE)
+## 13 rows of predicted values are missing because (presumably) some quadrats detected
+## no species that weren't also detected by point-intercept surveys
+
+#' ## Results
+
+
+
 # Subset richness data to a small set of grid_points to use as examples of accumulation curves
 rows_spe_pred <-
   spe_pred %>% drop_na() %>% filter(sample_points == 200)
@@ -247,72 +315,23 @@ example_curves <-
 names(example_curves) <- c("sample_points", example_gp)
 
 
-# Find species in YVP but not GV
 
-qspe_filter <-
-  qspe_pull_df %>% 
-  select(grid_point, subplot, key_plant_code) %>% 
-  anti_join(spe_mat_df, by = c("grid_point", "key_plant_code")) %>% 
-  mutate(detected = 1)
-  
-qspe_list <-  
-  split(qspe_filter, paste0("gp_", factor(qspe_filter$grid_point)))
 
-qspe_mat_list <-
-  lapply(qspe_list, function(x) {
-    data.frame(
-      x %>%
-        pivot_wider(
-          names_from = key_plant_code,
-          values_from = detected,
-          values_fn = min,
-          values_fill = 0
-        ) %>%
-        arrange(subplot) %>%
-        select(-grid_point),
-      row.names = 1
-    )
-  })
-
-# Create vectors of predicted richness for desired number of subplots
-subplots <- c(10, 8, 6, 4, 2)
-
-qspe_fun = function(x) {
-  data.frame(
-    subplots = factor(subplots),
-    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = subplots)
-  )
-}
-
-# This is where the accumulations at desired points is calculated
-qspe_pred <-
-  lapply(qspe_mat_list, qspe_fun) %>%
-  bind_rows(.id = "id") %>%
-  group_by(id) %>%
-  mutate(pred_pct = (pred / max(pred)) * 100) %>%
-  ungroup() %>%
-  separate(id,
-           into = c(NA, "grid_point"),
-           sep = "_",
-           remove = FALSE)
-
-# Results
-# ——————————————————————————————————
 
 ggplot(spe_pred %>% drop_na(), aes(x = sample_points, y = pred_pct)) +
   geom_boxplot(fill = "gray80") +
   labs(title = "All grid points") +
   theme_bgl
 
-ggplot(
-  spe_pred %>% drop_na() %>% filter(
-    type3_vegetation_indicators == "uncultivated grassland native or degraded"
-  ),
-  aes(x = sample_points, y = pred_pct)
-) +
-  geom_boxplot(fill = "gray80") +
-  labs(title = "Uncultivated grassland grid points") +
-  theme_bgl
+# ggplot(
+#   spe_pred %>% drop_na() %>% filter(
+#     type3_vegetation_indicators == "uncultivated grassland native or degraded"
+#   ),
+#   aes(x = sample_points, y = pred_pct)
+# ) +
+#   geom_boxplot(fill = "gray80") +
+#   labs(title = "Uncultivated grassland grid points") +
+#   theme_bgl
 
 ggplot(
   data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
@@ -324,9 +343,6 @@ ggplot(
   theme_bgl
 
 # YVP species to add
-ggplot(qspe_pred, aes(x = subplots, y = pred)) +
+ggplot(qspe_pred, aes(x = quads, y = pred)) +
   geom_boxplot()
-
-qspe_pred
-
 
