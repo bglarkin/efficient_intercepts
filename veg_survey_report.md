@@ -455,20 +455,25 @@ qspe_pred <-
 
 ## Results
 
+### Example rarefaction curves
+
+The following code and produces rarefaction curves from five grid
+points, representing the quantiles of total species richness across the
+survey. The figure provides an example of the range of species
+accumulation at points across the ranch.
+
 ``` r
-# Subset richness data to a small set of grid_points to use as examples of accumulation curves
+## Subset richness data to five grid points with a range of species richness
 rows_spe_pred <-
   spe_pred %>% drop_na() %>% filter(sample_points == 200)
-
 example_rows <-
   trunc(dim(rows_spe_pred)[1] * c(1 / dim(rows_spe_pred)[1], 0.25, 0.50, 0.75, 1.00))
-
 example_gp <-
   rows_spe_pred %>%
   arrange(pred) %>%
   slice(example_rows) %>%
   pull(id)
-
+## Filter the example data from `spe_mat_list`
 example_curves <-
   data.frame(
     c(1:200),
@@ -478,50 +483,117 @@ example_curves <-
     specaccum(spe_mat_list[[example_gp[4]]])$richness,
     specaccum(spe_mat_list[[example_gp[5]]])$richness
   )
-
 names(example_curves) <- c("sample_points", example_gp)
-
-
-
-
-
-ggplot(spe_pred %>% drop_na(), aes(x = sample_points, y = pred_pct)) +
-  geom_boxplot(fill = "gray80") +
-  labs(title = "All grid points") +
+## The figure shows a range of species accumulation across the surveyed grid points
+ggplot(
+  data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
+  aes(x = sample_points, y = value, group = grid_pt)
+) +
+  geom_line(aes(linetype = grid_pt)) +
+  scale_linetype(name = "grid point") +
+  scale_x_continuous(breaks = c(0, sample_points)) +
+  labs(x = "point intercepts (n)", y = "species (n)") +
   theme_bgl
 ```
 
 ![](veg_survey_report_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
 
-``` r
-# ggplot(
-#   spe_pred %>% drop_na() %>% filter(
-#     type3_vegetation_indicators == "uncultivated grassland native or degraded"
-#   ),
-#   aes(x = sample_points, y = pred_pct)
-# ) +
-#   geom_boxplot(fill = "gray80") +
-#   labs(title = "Uncultivated grassland grid points") +
-#   theme_bgl
+### Species richness vs. survey effort
 
-ggplot(
-  data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
-  aes(x = sample_points, y = value, group = grid_pt)
-) +
-  geom_vline(xintercept = 100) +
-  geom_line(aes(linetype = grid_pt)) +
-  scale_x_continuous(breaks = c(0, sample_points)) +
+Predicted species richness declines with a decreasing number of
+intercept points measured at a survey location. The decline is
+approximately linear from 200 to 80 intercept points, and then falls
+more steeply after a point of inflection at 80 intercept points. For
+this figure, species richness is shown as a percent of the total for
+each grid point to allow a comparison of all grid points on one figure.
+
+``` r
+## Figure showing percent of total richness at all grid points
+ggplot(spe_pred %>% 
+         drop_na(), 
+       aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "point intercepts (n)", y = "species (pct of total)") +
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-14-2.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
+
+At 100 point intercepts, predicted median species richness drops 18.3%
+(table)
 
 ``` r
-# YVP species to add
+spe_pred %>%
+  group_by(sample_points) %>%
+  summarize(
+    median_pct_of_total = median(pred_pct, na.rm = TRUE) %>% round(., 1),
+    .groups = "drop"
+  ) %>%
+  rename(point_intercepts = sample_points) %>%
+  kable(format = "pandoc")
+```
+
+| point\_intercepts | median\_pct\_of\_total |
+|:------------------|-----------------------:|
+| 40                |                   59.3 |
+| 80                |                   76.0 |
+| 100               |                   81.7 |
+| 120               |                   86.5 |
+| 160               |                   94.1 |
+| 200               |                  100.0 |
+
+``` r
+## Figure showing percent of total richness at uncultivated grassland points
+ggplot(spe_pred %>% 
+         drop_na() %>% 
+         filter(grid_point %in% grass_pts),
+       aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "point intercepts (n)", y = "species (pct of total)") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+
+In grassland habitat, predicted richness drops a little more than 20%
+when only 100 point intercepts are included in the rarefaction analysis
+(not shown).
+
+The quadrat survey can potentially add some species that were not
+detected by point-intercept methods. With some caveats (data from 2017
+instead of 2016, surveys occurred on different days-of-the-year, etc.),
+it appears that adding four 1x1 meter frames to a point-intercept survey
+would likely add six to possibly a dozen species.
+
+``` r
+# Rarefaction of quadrat data
 ggplot(qspe_pred, aes(x = quads, y = pred)) +
-  geom_boxplot()
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "quadrats (n)", y = "species (n)") +
+  theme_bgl
 ```
 
     ## Warning: Removed 13 rows containing non-finite values (stat_boxplot).
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-14-3.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+
+In real numbers the consequence of this would be to essentially offset
+the number of species lost when reducing the number of point intercepts
+from 200 to 100. The median species richness at 200 point intercepts is
+20, and at 100 point intercepts, rarefied species richness is 16. If
+four quadrats can add four or more species to each survey location,
+richness detected will be maintained. Other potential advantages may
+exist wtih the addition of quadrats to the survey protocol, and these
+will be discussed later.
+
+``` r
+spe_pred %>% filter(sample_points %in% c(200, 100)) %>% 
+  group_by(sample_points) %>% 
+  summarize(med_pred = median(pred, na.rm = TRUE))
+```
+
+    ## # A tibble: 2 x 2
+    ##   sample_points med_pred
+    ##   <fct>            <dbl>
+    ## 1 100               15.9
+    ## 2 200               20
