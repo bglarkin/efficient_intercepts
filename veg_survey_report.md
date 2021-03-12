@@ -5,7 +5,17 @@ Beau Larkin
 
 -   [Description](#description)
 -   [Resources](#resources)
+    -   [Package and library
+        installation](#package-and-library-installation)
+    -   [API keys](#api-keys)
+    -   [Global functions and styles](#global-functions-and-styles)
 -   [Source data](#source-data)
+    -   [Point-intercept species data](#point-intercept-species-data)
+    -   [Point-intercept ground cover
+        data](#point-intercept-ground-cover-data)
+    -   [Quadrat-based species data](#quadrat-based-species-data)
+    -   [Vegetation species metadata](#vegetation-species-metadata)
+    -   [Grid point metadata](#grid-point-metadata)
 
 # Description
 
@@ -118,8 +128,9 @@ Note that in `spe_pull_df`, with 200 intercepts per grid point, the
 total number of records indicated here should not be possible. Under
 investigation, I found that 7 grid points contain only 199 records, so
 no correction to the data is possible. For this analysis, a small number
-of missing records should not affect the interpretation. \#\#\# Species
-data must be transformed to long-form to enable filtering
+of missing records should not affect the interpretation.
+
+### Species data must be transformed to long-form to enable filtering
 
 ``` r
 spe_df <-

@@ -72,7 +72,7 @@ spe_pull_df <- as.data.frame(spe_pull_tb) %>% glimpse()
 #' Note that in `spe_pull_df`, with 200 intercepts per grid point, the total number of records indicated here should not be possible. 
 #' Under investigation, I found that 7 grid points contain only 199 records, so no correction to the data is possible. 
 #' For this analysis, a small number of missing records should not affect the interpretation.
-
+#'
 #' ### Species data must be transformed to long-form to enable filtering
 spe_df <-
   spe_pull_df %>%
