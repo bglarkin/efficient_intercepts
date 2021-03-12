@@ -12,6 +12,7 @@
 #' On February 27, 2020, Rebecca Durham, Craig Jourdonnais, Beau Larkin, Dean Pearson, Phil Ramsey, 
 #' and Mike McTee began a discussion about whether our vegetation survey methods need revision. 
 #' After that meeting, we identified several needs for additional investigation and discussion.
+#' 
 #' * [link](https://docs.google.com/document/d/1yCLPai5r4z5nxyimmbRF-I2Gugzn_jgBFV2wpemR0IM/edit?usp=sharing) to meeting notes from 2020-02-27
 #' * [link](https://docs.google.com/document/d/11Ec4hUrRYN9f24CrEPM5Ui3ec9SzbcOIuwKdRoc0v7A/edit?usp=sharing) to report on proposed revisions to vegetation survey methods
 #' 
@@ -74,14 +75,18 @@ spe_pull_df <- as.data.frame(spe_pull_tb) %>% glimpse()
 #' For this analysis, a small number of missing records should not affect the interpretation.
 #'
 #' ### Species data must be transformed to long-form to enable filtering
+#' T code "NV" or "no vegetation" is present and may be treated as a species unless 
+#' removed or treated differently. NV should be removed for species richness calculations, but should be retained
+#' for functional group cover calculations. 
+#' 
+#' In the imported data, many NA values exist in intercept hits 2-4. These aren't coded "NV". These NA values
+#' are treated differently depending on how the species data are used, and so are left in the data frame for now.
 spe_df <-
   spe_pull_df %>%
   select(grid_point, transect_point, starts_with("intercept")) %>%
   pivot_longer(starts_with("intercept"),
                names_to = "intercept",
                values_to = "key_plant_species") %>%
-  # replace_na(list(key_plant_species = 360)) %>%
-  drop_na() %>% 
   glimpse()
 
 #' ### Height data must be stripped from species data frame to use separately
@@ -148,4 +153,180 @@ gp_meta_df <- as.data.frame(gp_meta_tb) %>% glimpse()
 grass_pts <- gp_meta_df %>% 
   filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
   pull(grid_point)
+
+
+
+
+
+#' # Survey efficiency: species richness
+#' ## Data wrangling
+#' The species data must be transformed into samples-species matrices for each grid point. `Split()` 
+#' facilitates this by separating each grid point into a separate list object. The resulting list is then
+#' passed to a function with `lapply()` to create the samples-species matrices. 
+#' 
+#' Where `key_plant_code = NV`, 
+#' special treatment must be considered to prevent the species accumulation to consider that "NV" is a species. 
+#' NA values are recoded to "NV", and after pivoting each table to a samples-species matrix, the column "NV" is
+#' simply removed. This answers the immediate need to prevent including "NV" with species, but it also 
+#' preserves the number of rows in each list object (200 rows in all but seven cases). This will make sure that 
+#' species rarefaction reaches to the actual species richness detected at each grid point. If "NV" rows were simply
+#' filtered out of the original long-form dataset, many grid points would have fewer than 200 rows, and 
+#' the richness would cease accumulating before the actual richness measured was reached.
+
+spe_list<-
+  spe_df %>%
+  replace_na(list(key_plant_species = 360)) %>% 
+  select(-intercept) %>%
+  left_join(spe_meta_df %>% select(key_plant_species, key_plant_code), by = "key_plant_species") %>%
+  select(-key_plant_species) %>%
+  mutate(detected = 1) %>%
+  split(paste0("gp_", factor(spe_mat_df$grid_point)))
+
+spe_mat_list <-
+  lapply(spe_list, function(x) {
+    data.frame(
+      x %>%
+        pivot_wider(
+          names_from = key_plant_code,
+          values_from = detected,
+          values_fn = min,
+          values_fill = 0
+        ) %>%
+        arrange(transect_point) %>%
+        select(-NV,-grid_point),
+      row.names = 1
+    )
+  })
+
+#' Next, the list is passed to another function with `lapply()`, this time to calculate the species
+#' rarefaction on each samples-species matrix. Species rarefaction is predicted at known sampling
+#' efforts, which correspond with the number of pin drops. The vector `sample_points` controls the 
+#' desired rarefaction of species richness data.
+
+sample_points <- c(200, 160, 120, 100, 80, 40)
+
+spe_fun = function(x) {
+  data.frame(
+    sample_points = factor(sample_points),
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = sample_points)
+  )
+}
+
+## Rarefy the species data (this step takes a few minutes).
+spe_pred <-
+  lapply(spe_mat_list, spe_fun) %>%
+  bind_rows(.id = "id") %>%
+  group_by(id) %>%
+  mutate(pred_pct = (pred / max(pred)) * 100) %>%
+  ungroup() %>%
+  separate(id, into = c(NA, "grid_point"), sep = "_", remove = FALSE)
+
+# Subset richness data to a small set of grid_points to use as examples of accumulation curves
+rows_spe_pred <-
+  spe_pred %>% drop_na() %>% filter(sample_points == 200)
+
+example_rows <-
+  trunc(dim(rows_spe_pred)[1] * c(1 / dim(rows_spe_pred)[1], 0.25, 0.50, 0.75, 1.00))
+
+example_gp <-
+  rows_spe_pred %>%
+  arrange(pred) %>%
+  slice(example_rows) %>%
+  pull(id)
+
+example_curves <-
+  data.frame(
+    c(1:200),
+    specaccum(spe_mat_list[[example_gp[1]]])$richness,
+    specaccum(spe_mat_list[[example_gp[2]]])$richness,
+    specaccum(spe_mat_list[[example_gp[3]]])$richness,
+    specaccum(spe_mat_list[[example_gp[4]]])$richness,
+    specaccum(spe_mat_list[[example_gp[5]]])$richness
+  )
+
+names(example_curves) <- c("sample_points", example_gp)
+
+
+# Find species in YVP but not GV
+
+qspe_filter <-
+  qspe_pull_df %>% 
+  select(grid_point, subplot, key_plant_code) %>% 
+  anti_join(spe_mat_df, by = c("grid_point", "key_plant_code")) %>% 
+  mutate(detected = 1)
+  
+qspe_list <-  
+  split(qspe_filter, paste0("gp_", factor(qspe_filter$grid_point)))
+
+qspe_mat_list <-
+  lapply(qspe_list, function(x) {
+    data.frame(
+      x %>%
+        pivot_wider(
+          names_from = key_plant_code,
+          values_from = detected,
+          values_fn = min,
+          values_fill = 0
+        ) %>%
+        arrange(subplot) %>%
+        select(-grid_point),
+      row.names = 1
+    )
+  })
+
+# Create vectors of predicted richness for desired number of subplots
+subplots <- c(10, 8, 6, 4, 2)
+
+qspe_fun = function(x) {
+  data.frame(
+    subplots = factor(subplots),
+    pred = specaccum(x, method = "rarefaction") %>% predict(., newdata = subplots)
+  )
+}
+
+# This is where the accumulations at desired points is calculated
+qspe_pred <-
+  lapply(qspe_mat_list, qspe_fun) %>%
+  bind_rows(.id = "id") %>%
+  group_by(id) %>%
+  mutate(pred_pct = (pred / max(pred)) * 100) %>%
+  ungroup() %>%
+  separate(id,
+           into = c(NA, "grid_point"),
+           sep = "_",
+           remove = FALSE)
+
+# Results
+# ——————————————————————————————————
+
+ggplot(spe_pred %>% drop_na(), aes(x = sample_points, y = pred_pct)) +
+  geom_boxplot(fill = "gray80") +
+  labs(title = "All grid points") +
+  theme_bgl
+
+ggplot(
+  spe_pred %>% drop_na() %>% filter(
+    type3_vegetation_indicators == "uncultivated grassland native or degraded"
+  ),
+  aes(x = sample_points, y = pred_pct)
+) +
+  geom_boxplot(fill = "gray80") +
+  labs(title = "Uncultivated grassland grid points") +
+  theme_bgl
+
+ggplot(
+  data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
+  aes(x = sample_points, y = value, group = grid_pt)
+) +
+  geom_vline(xintercept = 100) +
+  geom_line(aes(linetype = grid_pt)) +
+  scale_x_continuous(breaks = c(0, sample_points)) +
+  theme_bgl
+
+# YVP species to add
+ggplot(qspe_pred, aes(x = subplots, y = pred)) +
+  geom_boxplot()
+
+qspe_pred
+
 
