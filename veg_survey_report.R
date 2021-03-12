@@ -327,7 +327,8 @@ ggplot(
 
 #' ### Species richness vs. survey effort
 #' 
-#' Predicted species richness declines with a decreasing number of intercept points
+#' Species richness in the point-intercept survey data ranges from 2 to 55. 
+#' Species richness predicted by rarefaction declines with a decreasing number of intercept points
 #' measured at a survey location. The decline is approximately linear from 200 to 80 
 #' intercept points, and then falls more steeply after a point of inflection at 80 intercept
 #' points. For this figure, species richness is shown as a percent of the total for each grid 
@@ -338,7 +339,7 @@ ggplot(spe_pred %>%
          drop_na(), 
        aes(x = sample_points, y = pred_pct)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "species (pct of total)") +
+  labs(x = "point intercepts (n)", y = "species (pct of total)", title = "Species rarefaction at all grid points") +
   theme_bgl
 
 #' At 100 point intercepts, predicted median species richness drops 18.3% (table)
@@ -357,7 +358,7 @@ ggplot(spe_pred %>%
          filter(grid_point %in% grass_pts),
        aes(x = sample_points, y = pred_pct)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "species (pct of total)") +
+  labs(x = "point intercepts (n)", y = "species (pct of total)", title = "Species rarefaction at grid points in grassland") +
   theme_bgl
 
 #' In grassland habitat, predicted richness drops a little more than 20% when only 100 point intercepts are 
@@ -383,3 +384,69 @@ ggplot(qspe_pred, aes(x = quads, y = pred)) +
 spe_pred %>% filter(sample_points %in% c(200, 100)) %>% 
   group_by(sample_points) %>% 
   summarize(med_pred = median(pred, na.rm = TRUE))
+
+#' # Ground cover
+#' 
+#' ## Example and motivation
+#' 
+#' Percent cover of vegetative and abiotic ground cover is a primary response variable desired from 
+#' the point-intercept survey. To explore the efficiency of our methods, an easy first step is 
+#' to produce a moving average of ground cover in common classes within a few grid points. Here, eleven 
+#' points were arbitrarily chosen and moving averages of ground cover calculated. 
+
+gr_cumean_df <-
+  grcov_pull_df %>%
+  filter(
+    grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246),
+    intercept_ground_code %in% c("S", "BV", "L", "M")
+  ) %>%
+  mutate(
+    detected = 1,
+    intercept_ground_code = recode(
+      intercept_ground_code,
+      S = "soil",
+      BV = "basal veg",
+      L = "litter",
+      M = "moss"
+    )
+  ) %>%
+  rename(ground_code = intercept_ground_code)
+
+n_pt <- length(unique(gr_cumean_df$grid_point))
+n_gr <- length(unique(gr_cumean_df$ground_code))
+
+gr_samp_df <- data.frame(
+  point = rep(rep(1:200, n_pt), n_gr),
+  samp_point = rep(rep(sample(1:200, replace = FALSE), n_pt), n_gr),
+  grid_point = rep(rep(unique(
+    gr_cumean_df$grid_point
+  ), each = 200), n_gr),
+  ground_code = rep(unique(gr_cumean_df$ground_code), each = n_pt * 200),
+  transect_point = rep(rep(
+    c(
+      paste0("N", 1:50),
+      paste0("E", 1:50),
+      paste0("S", 1:50),
+      paste0("W", 1:50)
+    ), n_pt
+  ), n_gr)
+) %>% as_tibble()
+
+gr_samp_df %>%
+  left_join(gr_cumean_df,
+            by = c("grid_point", "ground_code", "transect_point")) %>%
+  mutate(detected = case_when(is.na(detected) ~ 0, TRUE ~ as.numeric(detected))) %>%
+  arrange(grid_point, ground_code, samp_point) %>%
+  group_by(grid_point, ground_code) %>%
+  mutate(cummean_detected_pct = cummean(detected) * 100) %>%
+  ggplot(aes(x = samp_point, y = cummean_detected_pct, group = grid_point)) +
+  geom_step(size = 0.2) +
+  facet_wrap(vars(ground_code), scales = "free_y") +
+  labs(x = "point intercepts", y = "percent cover") +
+  theme_bgl
+
+#' Cumulative averages in these ground cover classes flatten quickly, reaching a narrow and 
+#' stable range after about 50 intercept points are measured. Does this mean that we could 
+#' obtain satisfactory data with fewer intercept points?
+
+
