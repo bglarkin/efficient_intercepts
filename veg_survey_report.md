@@ -492,6 +492,7 @@ example_gp <-
   arrange(pred) %>%
   slice(example_rows) %>%
   pull(id)
+
 ## Filter the example data from `spe_mat_list`
 example_curves <-
   data.frame(
@@ -503,7 +504,12 @@ example_curves <-
     specaccum(spe_mat_list[[example_gp[5]]])$richness
   )
 names(example_curves) <- c("sample_points", example_gp)
+
+
 ## The figure shows a range of species accumulation across the surveyed grid points
+```
+
+``` r
 ggplot(
   data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
   aes(x = sample_points, y = value, group = grid_pt)
@@ -515,7 +521,7 @@ ggplot(
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/species_accum_examples-1.png)<!-- -->
 
 ### Species richness vs. survey effort
 
@@ -529,6 +535,9 @@ each grid point to allow a comparison of all grid points on one figure.
 
 ``` r
 ## Figure showing percent of total richness at all grid points
+```
+
+``` r
 ggplot(spe_pred %>%
          drop_na(),
        aes(x = sample_points, y = pred_pct)) +
@@ -537,7 +546,7 @@ ggplot(spe_pred %>%
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/species_rarefaction_pct-1.png)<!-- -->
 
 At 100 point intercepts, predicted median species richness drops 18.3%
 (table)
@@ -576,6 +585,9 @@ dozen species.
 
 ``` r
 # Rarefaction of quadrat data
+```
+
+``` r
 ggplot(qspe_pred, aes(x = quads, y = pred)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
   labs(x = "quadrats (n)", y = "species (n)") +
@@ -584,7 +596,7 @@ ggplot(qspe_pred, aes(x = quads, y = pred)) +
 
     ## Warning: Removed 13 rows containing non-finite values (stat_boxplot).
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/species_rarefaction_pct_yvp-1.png)<!-- -->
 
 In real numbers the consequence of this would be to essentially offset
 the number of species lost when reducing the number of point intercepts
@@ -656,7 +668,9 @@ gr_samp_df <- data.frame(
     ), n_pt
   ), n_gr)
 )
+```
 
+``` r
 gr_samp_df %>%
   left_join(gr_cumean_df,
             by = c("grid_point", "ground_code", "transect_point")) %>%
@@ -671,7 +685,7 @@ gr_samp_df %>%
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/grcov_cummean_example-1.png)<!-- -->
 
 Cumulative averages in these ground cover classes flatten quickly,
 reaching a narrow and stable range after about 50 intercept points are
@@ -740,7 +754,9 @@ grcov_boot_summary <-
     ci_lwr = case_when(boot_mean - boot_ci > 0 ~ boot_mean - boot_ci, TRUE ~ 0),
     .groups = "drop"
   )
+```
 
+``` r
 ggplot(grcov_boot_summary,
        aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
   geom_ribbon(
@@ -755,7 +771,7 @@ ggplot(grcov_boot_summary,
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/grcov_boot_summary-1.png)<!-- -->
 
 Confidence intervals range from about about 6 to 7.5 with 200 point
 intercepts used in the bootstrap resample. The numbers can change a
@@ -779,15 +795,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| BG                      |          6.25 |          8.72 |        0.40 |
-| BV                      |          7.16 |         10.14 |        0.42 |
-| G                       |          6.87 |         10.03 |        0.46 |
-| L                       |          7.51 |         10.34 |        0.38 |
-| LIC                     |          6.58 |          9.50 |        0.44 |
-| M                       |          7.23 |         10.21 |        0.41 |
-| R                       |          6.95 |          9.75 |        0.40 |
-| S                       |          7.03 |          9.69 |        0.38 |
-| WDS                     |          6.53 |          8.41 |        0.29 |
+| BG                      |          6.40 |          8.62 |        0.35 |
+| BV                      |          7.07 |          9.93 |        0.40 |
+| G                       |          6.86 |          9.64 |        0.41 |
+| L                       |          7.34 |         10.36 |        0.41 |
+| LIC                     |          7.02 |          9.83 |        0.40 |
+| M                       |          7.24 |         10.11 |        0.40 |
+| R                       |          6.82 |          9.73 |        0.43 |
+| S                       |          6.73 |          9.63 |        0.43 |
+| WDS                     |          6.55 |          9.14 |        0.40 |
 
 # Vegetation height
 
@@ -816,7 +832,7 @@ ht_df %>%
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/height_cummean_example-1.png)<!-- -->
 
 ## Data Wrangling
 
@@ -882,7 +898,9 @@ ht_boot_summary <-
     ht_boot_ci = max(ht_boot_se, na.rm = TRUE) * qnorm(0.975),
     .groups = "drop"
   )
+```
 
+``` r
 ggplot(ht_boot_summary, aes(x = sampled_n, y = ht_boot_mean, group = 1)) +
   geom_ribbon(
     aes(ymin = ht_boot_mean - ht_boot_ci, ymax = ht_boot_mean + ht_boot_ci),
@@ -895,7 +913,7 @@ ggplot(ht_boot_summary, aes(x = sampled_n, y = ht_boot_mean, group = 1)) +
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/height_boot_summary-1.png)<!-- -->
 
 ``` r
 ht_boot_summary %>%
@@ -913,7 +931,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|         10.03 |         13.97 |        0.39 |
+|          9.61 |         13.88 |        0.44 |
 
 # Vegetation cover in functional groups
 
@@ -1001,7 +1019,9 @@ fg_boot_summary <-
     ci_lwr = case_when(boot_mean - boot_ci > 0 ~ boot_mean - boot_ci, TRUE ~ 0),
     .groups = "drop"
   )
+```
 
+``` r
 ggplot(fg_boot_summary,
        aes(x = sampled_n, y = boot_mean, group = plant_native_status)) +
   geom_ribbon(
@@ -1028,7 +1048,7 @@ ggplot(fg_boot_summary,
   theme_bgl
 ```
 
-![](veg_survey_report_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+![](veg_survey_report_files/figure-gfm/pfg_boot_summary-1.png)<!-- -->
 
 ``` r
 fg_boot_summary %>%
@@ -1050,12 +1070,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          3.91 |          5.39 |        0.38 |
-| native                | annual             | graminoid         |          1.38 |          1.79 |        0.30 |
-| native                | perennial          | forb              |          5.10 |          7.41 |        0.45 |
-| native                | perennial          | graminoid         |          6.46 |          9.23 |        0.43 |
-| native                | perennial          | shrub             |          6.64 |          9.14 |        0.38 |
-| nonnative             | annual             | forb              |          5.89 |          7.95 |        0.35 |
-| nonnative             | annual             | graminoid         |          6.17 |          8.87 |        0.44 |
-| nonnative             | perennial          | forb              |          5.37 |          7.43 |        0.38 |
-| nonnative             | perennial          | graminoid         |          7.15 |          9.85 |        0.38 |
+| native                | annual             | forb              |          3.76 |          5.59 |        0.49 |
+| native                | annual             | graminoid         |          1.44 |          1.77 |        0.23 |
+| native                | perennial          | forb              |          5.06 |          7.63 |        0.51 |
+| native                | perennial          | graminoid         |          6.38 |          8.99 |        0.41 |
+| native                | perennial          | shrub             |          6.36 |          9.45 |        0.49 |
+| nonnative             | annual             | forb              |          5.99 |          8.08 |        0.35 |
+| nonnative             | annual             | graminoid         |          6.37 |          8.79 |        0.38 |
+| nonnative             | perennial          | forb              |          5.31 |          7.44 |        0.40 |
+| nonnative             | perennial          | graminoid         |          7.00 |          9.89 |        0.41 |

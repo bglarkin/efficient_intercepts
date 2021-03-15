@@ -314,6 +314,7 @@ example_gp <-
   arrange(pred) %>%
   slice(example_rows) %>%
   pull(id)
+
 ## Filter the example data from `spe_mat_list`
 example_curves <-
   data.frame(
@@ -325,7 +326,10 @@ example_curves <-
     specaccum(spe_mat_list[[example_gp[5]]])$richness
   )
 names(example_curves) <- c("sample_points", example_gp)
+
+
 ## The figure shows a range of species accumulation across the surveyed grid points
+#+ species_accum_examples
 ggplot(
   data = example_curves %>% pivot_longer(-sample_points, names_to = "grid_pt"),
   aes(x = sample_points, y = value, group = grid_pt)
@@ -346,6 +350,7 @@ ggplot(
 #' point to allow a comparison of all grid points on one figure.
 
 ## Figure showing percent of total richness at all grid points
+#+ species_rarefaction_pct
 ggplot(spe_pred %>%
          drop_na(),
        aes(x = sample_points, y = pred_pct)) +
@@ -375,6 +380,7 @@ spe_pred %>%
 #' a dozen species.
 
 # Rarefaction of quadrat data
+#+ species_rarefaction_pct_yvp
 ggplot(qspe_pred, aes(x = quads, y = pred)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
   labs(x = "quadrats (n)", y = "species (n)") +
@@ -389,6 +395,7 @@ ggplot(qspe_pred, aes(x = quads, y = pred)) +
 spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
   group_by(sample_points) %>%
   summarize(med_pred = median(pred, na.rm = TRUE))
+
 
 #' # Ground cover
 #'
@@ -437,6 +444,7 @@ gr_samp_df <- data.frame(
   ), n_gr)
 )
 
+#+ grcov_cummean_example
 gr_samp_df %>%
   left_join(gr_cumean_df,
             by = c("grid_point", "ground_code", "transect_point")) %>%
@@ -516,6 +524,7 @@ grcov_boot_summary <-
     .groups = "drop"
   )
 
+#+ grcov_boot_summary
 ggplot(grcov_boot_summary,
        aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
   geom_ribbon(
@@ -557,6 +566,7 @@ grcov_boot_summary %>%
 #' 50 point intercepts, again prompting questions about whether quality data could be obtained
 #' with fewer point intercepts measured.
 
+#+ height_cummean_example
 ht_df %>%
   filter(grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246)) %>%
   drop_na() %>%
@@ -629,6 +639,7 @@ ht_boot_summary <-
     .groups = "drop"
   )
 
+#+ height_boot_summary
 ggplot(ht_boot_summary, aes(x = sampled_n, y = ht_boot_mean, group = 1)) +
   geom_ribbon(
     aes(ymin = ht_boot_mean - ht_boot_ci, ymax = ht_boot_mean + ht_boot_ci),
@@ -735,6 +746,7 @@ fg_boot_summary <-
     .groups = "drop"
   )
 
+#+ pfg_boot_summary
 ggplot(fg_boot_summary,
        aes(x = sampled_n, y = boot_mean, group = plant_native_status)) +
   geom_ribbon(
