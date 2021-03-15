@@ -56,6 +56,9 @@ source(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$stylesKey)
 ## Uses `plotrix`
 ci_95 = function(x){std.error(x) * qnorm(0.975)}
 
+## Number of resamples desired for bootstrapping
+B <- 1000
+
 #' # Source data
 #' 
 #' ## Point-intercept species data
@@ -445,10 +448,12 @@ gr_samp_df %>%
 
 
 #' ## Bootstrapped means and CIs of ground cover 
+#' 
 #' A resampling approach is used to create bootstrapped means and confidence intervals
 #' of percent ground cover. 
 #' 
 #' ### Data wrangling and analysis
+#' 
 #' The ground cover data are split into a list with one list element for each grid point.
 #' Then, the grid point data are resampled to a selected number of intercepts in a 
 #' function, using `lapply()`. 
@@ -477,7 +482,6 @@ grcov_boot <- function(pts, B) {
     mutate(sampled_n = factor(pts))
 }
 
-B <- 1000
 grcov_boot_df <-
   bind_rows(
     grcov_boot(40, B),
@@ -490,6 +494,7 @@ grcov_boot_df <-
   glimpse()
 
 #' ### Results
+#' 
 #' Similar to the species richness rarefaction, an inflection point appears at 80 point intercepts. Above
 #' that, the confidence interval decreases in a linear fashion to its value at 200 point intercepts.
 #' With fewer than 80 point intercepts, the confidence interval increases rapidly. 
@@ -527,7 +532,28 @@ grcov_boot_summary %>%
 
 
 #' # Vegetation height
-#' Height measurement contains many NA values. These occur when no vegetation is detected at a point 
+#' 
+#' ## Example and motivation
+#' 
+#' Cumulative average height also flattens quickly in the raw data, but evidence of spatial 
+#' structure also exists, with some cumulative averages trending up or (less often) down 
+#' as values are added. Much of the volatility in these averages dissipates after about
+#' 50 point intercepts, again prompting questions about whether quality data could be obtained 
+#' with fewer point intercepts measured.
+
+ht_df %>% 
+  filter(grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246)) %>% 
+  drop_na() %>% 
+  group_by(grid_point) %>% 
+  summarize(ht_cumean = cummean(height_intercept_1), pt = seq(1, n()), .groups = "drop") %>% 
+  ggplot(aes(x = pt, y = ht_cumean, group = grid_point)) +
+  geom_step(size = 0.2) +
+  labs(x = "point intercepts", y = "height (in)") +
+  theme_bgl
+
+#' ## Data Wrangling
+#' 
+#' #' Height measurement contains many NA values. These occur when no vegetation is detected at a point 
 #' intercept. How these NA values are treated depends on the information needed from these data.
 #' If the desired output concerns change in height of existing vegetation, then removing NA values 
 #' might make sense so that the average of height in sparse vegetation isn't dragged down by many zero values
@@ -535,80 +561,66 @@ grcov_boot_summary %>%
 #' Here, the NAs are treated as missing because it is assumed that this will be the dominant use case.
 
 ht_list <- split(ht_df %>% select(-transect_point), factor(ht_df$grid_point))
-B <- 1000
 
 ht_boot <- function(pts, B) {
   lapply(ht_list, function(x, pts, B) {
-    slice_sample(x, n = pts * 1000, replace = TRUE)
+    slice_sample(x, n = pts * B, replace = TRUE)
   }, pts = pts, B = B) %>%
     bind_rows() %>%
-    mutate(boot_run = rep(rep(1:1000, each = pts), length(ht_list))) %>%
+    mutate(boot_run = rep(rep(1:B, each = pts), length(ht_list))) %>%
     group_by(grid_point, boot_run) %>%
     summarize(ht_mean = mean(height_intercept_1, na.rm = TRUE),
               .groups = "drop") %>%
     group_by(grid_point) %>%
     summarize(
-      ht_boot_mean = mean(ht_mean),
-      ht_boot_se = sd(ht_mean),
+      ht_boot_mean = mean(ht_mean, na.rm = TRUE),
+      ht_boot_se = sd(ht_mean, na.rm = TRUE),
       .groups = "drop"
     ) %>%
     ungroup() %>%
     mutate(sampled_n = factor(pts))
 }
 
-ht_boot <-
+ht_boot_df <-
   bind_rows(
-    ht_boot(20),
-    ht_boot(40),
-    ht_boot(80),
-    ht_boot(100),
-    ht_boot(120),
-    ht_boot(160),
-    ht_boot(200)
+    ht_boot(40, B),
+    ht_boot(80, B),
+    ht_boot(100, B),
+    ht_boot(120, B),
+    ht_boot(160, B),
+    ht_boot(200, B)
   )
 
-ggplot(ht_boot_filtered,
-       aes(x = sampled_n, y = ht_boot_se, group = grid_point)) +
-  geom_line()
-ggplot(ht_boot_filtered,
-       aes(x = sampled_n, y = ht_boot_mean, group = grid_point)) +
-  geom_line()
+#' ## Results
+#' Again an inflection point appears at 80 point intercepts and the CI increases by ~45%. 
+#' The consistency in inflection point and change in CIs among different data types is 
+#' partially reflective of the methods used. In the bootstrap resampling, the same number
+#' of values are generated across all of these measurements, so part of what is being tested 
+#' is the strength of large numbers of data points generally. 
 
-#### height figure NA exclude ####
-# 160 is max sampled_n because few points have >160 height measurements
-ht_boot_filtered_160 <- ht_boot_filtered %>%
-  filter(sampled_n == 160) %>%
-  rename(ht_boot_mean_160 = ht_boot_mean) %>%
-  select(-ht_boot_se,-sampled_n)
+ht_boot_summary <-
+ht_boot_df %>%
+  group_by(sampled_n) %>%
+  summarize(
+    ht_boot_mean = mean(ht_boot_mean, na.rm = TRUE),
+    ht_boot_ci = max(ht_boot_se, na.rm = TRUE) * qnorm(0.975),
+    .groups = "drop") 
 
-ht_boot_filtered_adj <-
-  ht_boot_filtered %>%
-  left_join(ht_boot_filtered_160, by = c("grid_point")) %>%
-  mutate(boot_ht_mean_adj = ht_boot_mean - ht_boot_mean_160)
-
-ggplot(ht_boot_filtered_adj, aes(x = sampled_n, y = boot_ht_mean_adj)) +
-  geom_line(
-    aes(y = boot_ht_mean_adj + ht_boot_se, group = grid_point),
-    color = "gray80",
-    size = 0.05
-  ) +
-  geom_line(
-    aes(y = boot_ht_mean_adj - ht_boot_se, group = grid_point),
-    color = "gray80",
-    size = 0.05
-  ) +
-  geom_boxplot(outlier.size = 0.6) +
-  labs(title = "Height with NULL values excluded") +
+ggplot(ht_boot_summary, aes(x = sampled_n, y = ht_boot_mean, group = 1)) +
+  geom_ribbon(aes(ymin = ht_boot_mean - ht_boot_ci, ymax = ht_boot_mean + ht_boot_ci), fill = "gray90", color = "gray20", linetype = "dashed", size = 0.4) +
+  geom_line(aes(y = ht_boot_mean), color = "gray20", size = 0.4) +
+  labs(x = "point intercepts (n)", y = "height (in)") +
   theme_bgl
 
-# What are differences in SE for each group?
-ht_boot_filtered_adj %>%
-  group_by(sampled_n) %>%
-  summarize(se_max = max(ht_boot_se), .groups = "drop") %>%
-  filter(sampled_n %in% c(40, 80, 100, 120, 160)) %>%
-  ungroup() %>%
+ht_boot_summary %>%
+  mutate(ht_boot_ci = round(ht_boot_ci, 2)) %>% 
+  select(-ht_boot_mean) %>% 
   pivot_wider(names_from = sampled_n,
-              values_from = se_max,
-              names_prefix = "se_samp_") %>%
-  kable(format = "pandoc", caption = "Height with NULL values excluded")
+              values_from = ht_boot_ci,
+              names_prefix = "ci_samp_") %>% 
+  select(ci_samp_200, ci_samp_100) %>%
+  mutate(pct_change = (((ci_samp_100 - ci_samp_200) / ci_samp_200)) %>% round(., 2)) %>% 
+  kable(format = "pandoc")
+
+
 
