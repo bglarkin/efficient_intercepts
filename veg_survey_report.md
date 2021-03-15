@@ -8,7 +8,8 @@ Beau Larkin
     -   [Package and library
         installation](#package-and-library-installation)
     -   [API keys](#api-keys)
-    -   [Global functions and styles](#global-functions-and-styles)
+    -   [Global functions and styles:
+        `theme_bgl`](#global-functions-and-styles-theme_bgl)
 -   [Source data](#source-data)
     -   [Point-intercept species data](#point-intercept-species-data)
     -   [Point-intercept ground cover
@@ -94,11 +95,11 @@ for (i in 1:length(packages_needed)) {
 API keys for data access are pulled from local resources and are not
 available in the hosted environment. Code not shown here.
 
-## Global functions and styles
+## Global functions and styles: `theme_bgl`
 
 ``` r
-## Load text file of styles from Google Drive
-source(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$stylesKey)
+## Load text file from local working directory
+source(paste0(getwd(), "/styles.txt"))
 
 ## Calculating the 95% CI will aid plotting later
 ## Uses `plotrix`
@@ -778,15 +779,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| BG                      |          6.02 |          9.05 |        0.50 |
-| BV                      |          7.12 |         10.23 |        0.44 |
-| G                       |          7.27 |          9.77 |        0.34 |
-| L                       |          7.29 |         10.31 |        0.41 |
-| LIC                     |          6.69 |          9.60 |        0.43 |
-| M                       |          7.16 |         10.17 |        0.42 |
-| R                       |          6.79 |          9.79 |        0.44 |
-| S                       |          6.98 |          9.71 |        0.39 |
-| WDS                     |          6.61 |          9.18 |        0.39 |
+| BG                      |          6.25 |          8.72 |        0.40 |
+| BV                      |          7.16 |         10.14 |        0.42 |
+| G                       |          6.87 |         10.03 |        0.46 |
+| L                       |          7.51 |         10.34 |        0.38 |
+| LIC                     |          6.58 |          9.50 |        0.44 |
+| M                       |          7.23 |         10.21 |        0.41 |
+| R                       |          6.95 |          9.75 |        0.40 |
+| S                       |          7.03 |          9.69 |        0.38 |
+| WDS                     |          6.53 |          8.41 |        0.29 |
 
 # Vegetation height
 
@@ -912,7 +913,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.78 |          13.5 |        0.38 |
+|         10.03 |         13.97 |        0.39 |
 
 # Vegetation cover in functional groups
 
@@ -1049,12 +1050,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          3.79 |          5.46 |        0.44 |
-| native                | annual             | graminoid         |          1.39 |          1.87 |        0.35 |
-| native                | perennial          | forb              |          4.96 |          7.53 |        0.52 |
-| native                | perennial          | graminoid         |          6.59 |          9.15 |        0.39 |
-| native                | perennial          | shrub             |          6.45 |          9.26 |        0.44 |
-| nonnative             | annual             | forb              |          5.83 |          8.22 |        0.41 |
-| nonnative             | annual             | graminoid         |          6.23 |          9.09 |        0.46 |
-| nonnative             | perennial          | forb              |          5.44 |          7.82 |        0.44 |
-| nonnative             | perennial          | graminoid         |          6.67 |          9.66 |        0.45 |
+| native                | annual             | forb              |          3.91 |          5.39 |        0.38 |
+| native                | annual             | graminoid         |          1.38 |          1.79 |        0.30 |
+| native                | perennial          | forb              |          5.10 |          7.41 |        0.45 |
+| native                | perennial          | graminoid         |          6.46 |          9.23 |        0.43 |
+| native                | perennial          | shrub             |          6.64 |          9.14 |        0.38 |
+| nonnative             | annual             | forb              |          5.89 |          7.95 |        0.35 |
+| nonnative             | annual             | graminoid         |          6.17 |          8.87 |        0.44 |
+| nonnative             | perennial          | forb              |          5.37 |          7.43 |        0.38 |
+| nonnative             | perennial          | graminoid         |          7.15 |          9.85 |        0.38 |

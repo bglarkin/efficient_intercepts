@@ -51,8 +51,8 @@ bq_auth(
 Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
 billing <- bq_test_project()
 
-#' ## Global functions and styles
-## Load text file of styles from Google Drive
+#' ## Global functions and styles: `theme_bgl`
+## Load text file from local working directory
 source(paste0(getwd(), "/styles.txt"))
 
 ## Calculating the 95% CI will aid plotting later
