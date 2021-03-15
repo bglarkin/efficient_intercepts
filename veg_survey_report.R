@@ -461,7 +461,7 @@ grcov_list <-
 grcov_boot <- function(pts, B) {
   lapply(grcov_list, function(x, pts, B) {
     slice_sample(x, n = pts * B, replace = TRUE)
-  }, pts = pts) %>%
+  }, pts = pts, B = B) %>%
     bind_rows() %>%
     mutate(detected = 1, boot_run = rep(rep(1:B, each = pts), n_points)) %>%
     group_by(grid_point, boot_run, intercept_ground_code) %>%
