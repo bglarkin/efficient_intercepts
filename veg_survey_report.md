@@ -22,6 +22,14 @@ Beau Larkin
     -   [Results](#results)
 -   [Ground cover](#ground-cover)
     -   [Example and motivation](#example-and-motivation)
+-   [Vegetation height](#vegetation-height)
+    -   [Example and motivation](#example-and-motivation-1)
+    -   [Data Wrangling](#data-wrangling)
+    -   [Results](#results-2)
+-   [Vegetation cover in functional
+    groups](#vegetation-cover-in-functional-groups)
+    -   [Data wrangling](#data-wrangling-1)
+    -   [Results](#results-3)
 
 # Description
 
@@ -94,7 +102,12 @@ source(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$stylesKey)
 
 ## Calculating the 95% CI will aid plotting later
 ## Uses `plotrix`
-ci_95 = function(x){std.error(x) * qnorm(0.975)}
+ci_95 = function(x) {
+  std.error(x) * qnorm(0.975)
+}
+
+## Number of resamples desired for bootstrapping
+B <- 1000
 ```
 
 # Source data
@@ -304,8 +317,8 @@ filtering grid points to grassland habitats without having to use
 `left_join()` to associate metadata with vegetation data.
 
 ``` r
-grass_pts <- gp_meta_df %>% 
-  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+grass_pts <- gp_meta_df %>%
+  filter(type3_vegetation_indicators == "uncultivated grassland native or degraded") %>%
   pull(grid_point)
 ```
 
@@ -333,9 +346,9 @@ points would have fewer than 200 rows, and the richness would cease
 accumulating before the actual richness measured was reached.
 
 ``` r
-spe_list<-
+spe_list <-
   spe_df %>%
-  replace_na(list(key_plant_species = 360)) %>% 
+  replace_na(list(key_plant_species = 360)) %>%
   select(-intercept) %>%
   left_join(spe_meta_df %>% select(key_plant_species, key_plant_code), by = "key_plant_species") %>%
   select(-key_plant_species) %>%
@@ -353,7 +366,7 @@ spe_mat_list <-
           values_fill = 0
         ) %>%
         arrange(transect_point) %>%
-        select(-NV,-grid_point),
+        select(-NV, -grid_point),
       row.names = 1
     )
   })
@@ -382,7 +395,10 @@ spe_pred <-
   group_by(id) %>%
   mutate(pred_pct = (pred / max(pred)) * 100) %>%
   ungroup() %>%
-  separate(id, into = c(NA, "grid_point"), sep = "_", remove = FALSE)
+  separate(id,
+           into = c(NA, "grid_point"),
+           sep = "_",
+           remove = FALSE)
 ```
 
 ### Quadrat data
@@ -401,17 +417,17 @@ added to point-intercept surveys by the number of quadrats added.
 
 ``` r
 ## The code here closely follows the previous code for point-intercept data,
-## but because some column names and other variables differ slightly, 
-## the functions are repeated with slight edits insetad of being handled 
-## programatically. 
+## but because some column names and other variables differ slightly,
+## the functions are repeated with slight edits insetad of being handled
+## programatically.
 qspe_filter <-
-  qspe_pull_df %>% 
-  select(grid_point, subplot, key_plant_species, key_plant_code) %>% 
-  anti_join(spe_df, by = c("grid_point", "key_plant_species")) %>% 
-  select(-key_plant_species) %>% 
+  qspe_pull_df %>%
+  select(grid_point, subplot, key_plant_species, key_plant_code) %>%
+  anti_join(spe_df, by = c("grid_point", "key_plant_species")) %>%
+  select(-key_plant_species) %>%
   mutate(detected = 1)
-  
-qspe_list <-  
+
+qspe_list <-
   split(qspe_filter, paste0("gp_", factor(qspe_filter$grid_point)))
 
 qspe_mat_list <-
@@ -512,8 +528,8 @@ each grid point to allow a comparison of all grid points on one figure.
 
 ``` r
 ## Figure showing percent of total richness at all grid points
-ggplot(spe_pred %>% 
-         drop_na(), 
+ggplot(spe_pred %>%
+         drop_na(),
        aes(x = sample_points, y = pred_pct)) +
   geom_boxplot(fill = "gray90", outlier.color = "gray20") +
   labs(x = "point intercepts (n)", y = "species (pct of total)") +
@@ -579,8 +595,8 @@ exist wtih the addition of quadrats to the survey protocol, and these
 will be discussed later.
 
 ``` r
-spe_pred %>% filter(sample_points %in% c(200, 100)) %>% 
-  group_by(sample_points) %>% 
+spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
+  group_by(sample_points) %>%
   summarize(med_pred = median(pred, na.rm = TRUE))
 ```
 
@@ -660,6 +676,7 @@ Cumulative averages in these ground cover classes flatten quickly,
 reaching a narrow and stable range after about 50 intercept points are
 measured. Does this mean that we could obtain satisfactory data with
 fewer intercept points? \#\# Bootstrapped means and CIs of ground cover
+
 A resampling approach is used to create bootstrapped means and
 confidence intervals of percent ground cover.
 
@@ -670,17 +687,16 @@ each grid point. Then, the grid point data are resampled to a selected
 number of intercepts in a function, using `lapply()`.
 
 ``` r
-n_points <- length(unique(grcov_pull_df$grid_point))
 grcov_list <-
   split(grcov_pull_df %>% select(-transect_point),
         factor(grcov_pull_df$grid_point))
 
 grcov_boot <- function(pts, B) {
-  lapply(grcov_list, function(x, pts) {
+  lapply(grcov_list, function(x, pts, B) {
     slice_sample(x, n = pts * B, replace = TRUE)
-  }, pts = pts) %>%
+  }, pts = pts, B = B) %>%
     bind_rows() %>%
-    mutate(detected = 1, boot_run = rep(rep(1:B, each = pts), n_points)) %>%
+    mutate(detected = 1, boot_run = rep(rep(1:B, each = pts), length(grcov_list))) %>%
     group_by(grid_point, boot_run, intercept_ground_code) %>%
     summarize(pct_detected = sum(detected) / pts * 100,
               .groups = "drop") %>%
@@ -694,7 +710,6 @@ grcov_boot <- function(pts, B) {
     mutate(sampled_n = factor(pts))
 }
 
-B <- 1000
 grcov_boot_df <-
   bind_rows(
     grcov_boot(40, B),
@@ -703,17 +718,8 @@ grcov_boot_df <-
     grcov_boot(120, B),
     grcov_boot(160, B),
     grcov_boot(200, B)
-  ) %>%
-  glimpse()
+  )
 ```
-
-    ## Rows: 27,264
-    ## Columns: 5
-    ## $ grid_point            <int> 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, …
-    ## $ intercept_ground_code <chr> "BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS…
-    ## $ boot_pct_mean         <dbl> 6.247228, 3.530246, 3.370787, 11.538850, 5.30769…
-    ## $ boot_pct_se           <dbl> 3.3496514, 1.6790352, 1.4771688, 5.0430725, 2.82…
-    ## $ sampled_n             <fct> 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, …
 
 ### Results
 
@@ -730,11 +736,19 @@ grcov_boot_summary <-
   summarize(
     boot_mean = mean(boot_pct_mean),
     boot_ci = max(boot_pct_se) * qnorm(0.975),
-    .groups = "drop") 
+    ci_lwr = case_when(boot_mean - boot_ci > 0 ~ boot_mean - boot_ci, TRUE ~ 0),
+    .groups = "drop"
+  )
 
-ggplot(grcov_boot_summary, aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
-  geom_ribbon(aes(ymin = boot_mean - boot_ci, ymax = boot_mean + boot_ci), fill = "gray90", color = "gray20", linetype = "dashed", size = 0.4) +
-  geom_line(aes(y = boot_mean), color = "gray20", size = 0.4) +
+ggplot(grcov_boot_summary,
+       aes(x = sampled_n, y = boot_mean, group = intercept_ground_code)) +
+  geom_ribbon(
+    aes(ymin = ci_lwr, ymax = boot_mean + boot_ci),
+    fill = "gray90",
+    color = "gray20",
+    size = 0.4
+  ) +
+  geom_line(aes(y = boot_mean), color = "gray20", size = 0.8) +
   labs(x = "point intercepts (n)", y = "percent cover") +
   facet_wrap(vars(intercept_ground_code), scales = "free_y") +
   theme_bgl
@@ -742,32 +756,305 @@ ggplot(grcov_boot_summary, aes(x = sampled_n, y = boot_mean, group = intercept_g
 
 ![](veg_survey_report_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
 
-Confidence intervals range from about about 6 to 7.25 with 200 point
+Confidence intervals range from about about 6 to 7.5 with 200 point
 intercepts used in the bootstrap resample. The numbers can change a
 little if the resampling is repeated, but the magnitude and range won’t
 change much. With resampling down to 100 point intercepts, the
-confidence interval increases by 38-47 percent.
+confidence interval increases by \~30-50 percent.
 
 ``` r
 grcov_boot_summary %>%
-  mutate(boot_ci = round(boot_ci, 2)) %>% 
-  select(-boot_mean) %>% 
+  mutate(boot_ci = round(boot_ci, 2)) %>%
+  select(-boot_mean,-ci_lwr) %>%
   pivot_wider(names_from = sampled_n,
               values_from = boot_ci,
-              names_prefix = "ci_samp_") %>% 
+              names_prefix = "ci_samp_") %>%
   select(intercept_ground_code, ci_samp_200, ci_samp_100) %>%
-  mutate(pct_change = (((ci_samp_100 - ci_samp_200) / ci_samp_200)) %>% round(., 2)) %>% 
+  mutate(pct_change = (((
+    ci_samp_100 - ci_samp_200
+  ) / ci_samp_200)) %>% round(., 2)) %>%
   kable(format = "pandoc")
 ```
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| BG                      |          6.25 |          9.00 |        0.44 |
-| BV                      |          7.22 |         10.14 |        0.40 |
-| G                       |          6.92 |          9.83 |        0.42 |
-| L                       |          7.43 |         10.34 |        0.39 |
-| LIC                     |          6.87 |          9.37 |        0.36 |
-| M                       |          7.24 |         10.06 |        0.39 |
-| R                       |          6.86 |          9.99 |        0.46 |
-| S                       |          7.03 |          9.91 |        0.41 |
-| WDS                     |          6.55 |          8.53 |        0.30 |
+| BG                      |          6.02 |          9.05 |        0.50 |
+| BV                      |          7.12 |         10.23 |        0.44 |
+| G                       |          7.27 |          9.77 |        0.34 |
+| L                       |          7.29 |         10.31 |        0.41 |
+| LIC                     |          6.69 |          9.60 |        0.43 |
+| M                       |          7.16 |         10.17 |        0.42 |
+| R                       |          6.79 |          9.79 |        0.44 |
+| S                       |          6.98 |          9.71 |        0.39 |
+| WDS                     |          6.61 |          9.18 |        0.39 |
+
+# Vegetation height
+
+## Example and motivation
+
+Cumulative average height also flattens quickly in the raw data, but
+evidence of spatial structure also exists, with some cumulative averages
+trending up or (less often) down as values are added. Much of the
+volatility in these averages dissipates after about 50 point intercepts,
+again prompting questions about whether quality data could be obtained
+with fewer point intercepts measured.
+
+``` r
+ht_df %>%
+  filter(grid_point %in% c(12, 20, 22, 180, 181, 184, 202, 203, 205, 212, 246)) %>%
+  drop_na() %>%
+  group_by(grid_point) %>%
+  summarize(
+    ht_cumean = cummean(height_intercept_1),
+    pt = seq(1, n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = pt, y = ht_cumean, group = grid_point)) +
+  geom_step(size = 0.2) +
+  labs(x = "point intercepts", y = "height (in)") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+
+## Data Wrangling
+
+\#’ Height measurement contains many NA values. These occur when no
+vegetation is detected at a point intercept. How these NA values are
+treated depends on the information needed from these data. If the
+desired output concerns change in height of existing vegetation, then
+removing NA values might make sense so that the average of height in
+sparse vegetation isn’t dragged down by many zero values But, if an
+average height of the vegetation surface is needed, changing the NAs to
+zeros probably makes sense Here, the NAs are treated as missing because
+it is assumed that this will be the dominant use case.
+
+``` r
+ht_list <-
+  split(ht_df %>% select(-transect_point), factor(ht_df$grid_point))
+
+ht_boot <- function(pts, B) {
+  lapply(ht_list, function(x, pts, B) {
+    slice_sample(x, n = pts * B, replace = TRUE)
+  }, pts = pts, B = B) %>%
+    bind_rows() %>%
+    mutate(boot_run = rep(rep(1:B, each = pts), length(ht_list))) %>%
+    group_by(grid_point, boot_run) %>%
+    summarize(ht_mean = mean(height_intercept_1, na.rm = TRUE),
+              .groups = "drop") %>%
+    group_by(grid_point) %>%
+    summarize(
+      ht_boot_mean = mean(ht_mean, na.rm = TRUE),
+      ht_boot_se = sd(ht_mean, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+ht_boot_df <-
+  bind_rows(
+    ht_boot(40, B),
+    ht_boot(80, B),
+    ht_boot(100, B),
+    ht_boot(120, B),
+    ht_boot(160, B),
+    ht_boot(200, B)
+  )
+```
+
+## Results
+
+Again an inflection point appears at 80 point intercepts and the CI
+increases by \~40%. The consistency in inflection point and change in
+CIs among different data types is partially reflective of the methods
+used. In the bootstrap resampling, the same number of values are
+generated across all of these measurements, so part of what is being
+tested is the strength of large numbers of data points generally.
+
+``` r
+ht_boot_summary <-
+  ht_boot_df %>%
+  group_by(sampled_n) %>%
+  summarize(
+    ht_boot_mean = mean(ht_boot_mean, na.rm = TRUE),
+    ht_boot_ci = max(ht_boot_se, na.rm = TRUE) * qnorm(0.975),
+    .groups = "drop"
+  )
+
+ggplot(ht_boot_summary, aes(x = sampled_n, y = ht_boot_mean, group = 1)) +
+  geom_ribbon(
+    aes(ymin = ht_boot_mean - ht_boot_ci, ymax = ht_boot_mean + ht_boot_ci),
+    fill = "gray90",
+    color = "gray20",
+    size = 0.4
+  ) +
+  geom_line(aes(y = ht_boot_mean), color = "gray20", size = 0.8) +
+  labs(x = "point intercepts (n)", y = "height (in)") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
+
+``` r
+ht_boot_summary %>%
+  mutate(ht_boot_ci = round(ht_boot_ci, 2)) %>%
+  select(-ht_boot_mean) %>%
+  pivot_wider(names_from = sampled_n,
+              values_from = ht_boot_ci,
+              names_prefix = "ci_samp_") %>%
+  select(ci_samp_200, ci_samp_100) %>%
+  mutate(pct_change = (((
+    ci_samp_100 - ci_samp_200
+  ) / ci_samp_200)) %>% round(., 2)) %>%
+  kable(format = "pandoc")
+```
+
+| ci\_samp\_200 | ci\_samp\_100 | pct\_change |
+|--------------:|--------------:|------------:|
+|          9.78 |          13.5 |        0.38 |
+
+# Vegetation cover in functional groups
+
+## Data wrangling
+
+As before, the cumulative means of cover flattened before 200 point
+intercepts were reached (not shown).
+
+``` r
+## Correct error with spotted knapweed so that cover for nonnative
+## perennial forbs is accurate
+spe_meta_df[spe_meta_df$key_plant_code == "CENSTO", 4] <- "perennial"
+
+fg_df <- spe_df %>%
+  left_join(spe_meta_df, by = "key_plant_species") %>%
+  select(grid_point,
+         key_plant_code,
+         plant_native_status,
+         plant_life_cycle,
+         plant_life_form)
+
+fg_list <- split(fg_df, factor(fg_df$grid_point))
+
+fg_boot <- function(pts, B) {
+  lapply(fg_list, function(x, pts, B) {
+    slice_sample(x, n = pts * B, replace = TRUE)
+  }, pts = pts, B = B) %>%
+    bind_rows() %>%
+    mutate(detected = 1,
+           boot_run = rep(rep(1:B, each = pts), length(fg_list))) %>%
+    group_by(grid_point,
+             boot_run,
+             plant_native_status,
+             plant_life_cycle,
+             plant_life_form) %>%
+    summarize(pct = sum(detected) / pts * 100, .groups = "drop") %>%
+    group_by(grid_point,
+             plant_native_status,
+             plant_life_cycle,
+             plant_life_form) %>%
+    summarize(
+      boot_pct_mean = mean(pct),
+      boot_pct_se = sd(pct),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(sampled_n = factor(pts))
+}
+
+fg_boot_df <-
+  bind_rows(
+    fg_boot(40, B),
+    fg_boot(80, B),
+    fg_boot(100, B),
+    fg_boot(120, B),
+    fg_boot(160, B),
+    fg_boot(200, B)
+  )
+```
+
+## Results
+
+The CIs show more volatiliy here than was obvious with height or ground
+cover data, but the inflection at 80 point intercepts is still obvious,
+and the CIs again increased \~30-40% when downsampling from 200 to 100
+point intercepts. In functional groups with very low cover across the
+ranch, we see different shapes of the bootstrapped means and CIs (with
+native annual grasses, for example).
+
+``` r
+fg_boot_summary <-
+  fg_boot_df %>%
+  filter(
+    plant_native_status %in% c("native", "nonnative"),
+    plant_life_cycle %in% c("annual", "perennial"),
+    plant_life_form %in% c("graminoid", "forb", "shrub")
+  ) %>%
+  group_by(sampled_n,
+           plant_native_status,
+           plant_life_cycle,
+           plant_life_form) %>%
+  summarize(
+    boot_mean = mean(boot_pct_mean),
+    boot_ci = max(boot_pct_se) * qnorm(0.975),
+    ci_lwr = case_when(boot_mean - boot_ci > 0 ~ boot_mean - boot_ci, TRUE ~ 0),
+    .groups = "drop"
+  )
+
+ggplot(fg_boot_summary,
+       aes(x = sampled_n, y = boot_mean, group = plant_native_status)) +
+  geom_ribbon(
+    aes(
+      ymin = ci_lwr,
+      ymax = boot_mean + boot_ci,
+      linetype = plant_native_status
+    ),
+    fill = "gray80",
+    color = "gray20",
+    size = 0.4,
+    alpha = 0.2
+  ) +
+  geom_line(aes(y = boot_mean, linetype = plant_native_status),
+            size = 0.8,
+            color = "gray20") +
+  labs(x = "point intercepts (n)", y = "percent cover") +
+  facet_grid(
+    rows = vars(plant_life_cycle),
+    cols = vars(plant_life_form),
+    scales = "free_y"
+  ) +
+  scale_linetype(name = "") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+
+``` r
+fg_boot_summary %>%
+  mutate(boot_ci = round(boot_ci, 2)) %>%
+  select(-boot_mean,-ci_lwr) %>%
+  pivot_wider(names_from = sampled_n,
+              values_from = boot_ci,
+              names_prefix = "ci_samp_") %>%
+  select(plant_native_status,
+         plant_life_cycle,
+         plant_life_form,
+         ci_samp_200,
+         ci_samp_100) %>%
+  mutate(pct_change = (((
+    ci_samp_100 - ci_samp_200
+  ) / ci_samp_200)) %>% round(., 2)) %>%
+  kable(format = "pandoc")
+```
+
+| plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
+|:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
+| native                | annual             | forb              |          3.79 |          5.46 |        0.44 |
+| native                | annual             | graminoid         |          1.39 |          1.87 |        0.35 |
+| native                | perennial          | forb              |          4.96 |          7.53 |        0.52 |
+| native                | perennial          | graminoid         |          6.59 |          9.15 |        0.39 |
+| native                | perennial          | shrub             |          6.45 |          9.26 |        0.44 |
+| nonnative             | annual             | forb              |          5.83 |          8.22 |        0.41 |
+| nonnative             | annual             | graminoid         |          6.23 |          9.09 |        0.46 |
+| nonnative             | perennial          | forb              |          5.44 |          7.82 |        0.44 |
+| nonnative             | perennial          | graminoid         |          6.67 |          9.66 |        0.45 |

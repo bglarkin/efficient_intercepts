@@ -53,7 +53,7 @@ billing <- bq_test_project()
 
 #' ## Global functions and styles
 ## Load text file of styles from Google Drive
-source(fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$stylesKey)
+source(paste0(getwd(), "/styles.txt"))
 
 ## Calculating the 95% CI will aid plotting later
 ## Uses `plotrix`
@@ -718,7 +718,7 @@ fg_boot_df <-
 #' (with native annual grasses, for example).
 
 fg_boot_summary <-
-  fg_boot_mean %>%
+  fg_boot_df %>%
   filter(
     plant_native_status %in% c("native", "nonnative"),
     plant_life_cycle %in% c("annual", "perennial"),
