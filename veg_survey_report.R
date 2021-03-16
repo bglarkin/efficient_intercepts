@@ -668,7 +668,12 @@ ht_boot_summary %>%
 #' 
 #' ## Data wrangling
 #' 
-#' As before, the cumulative means of cover flattened before 200 point intercepts were reached (not shown).
+#' As before, the cumulative means of cover flattened before 200 point intercepts were reached (not shown). 
+#' Missing (`NA`) values are difficult to deal with in the point-intercept data. With four possible
+#' hits per point intercept, it would make sense to have 800 possible samples, and at any point 
+#' hit where vegetation is not detected, it would be coded to "NV" for no vegetation. That results in 
+#' cover values for vegetation that are simply too low to compare with other survey data. Here, the 
+#' "NV" codes for hit 1 are kept as placeholders for resampling, but the NULL values are discarded. 
 
 ## Correct error with spotted knapweed so that cover for nonnative
 ## perennial forbs is accurate
@@ -680,7 +685,8 @@ fg_df <- spe_df %>%
          key_plant_code,
          plant_native_status,
          plant_life_cycle,
-         plant_life_form)
+         plant_life_form) %>% 
+  drop_na()
 
 fg_list <- split(fg_df, factor(fg_df$grid_point))
 
