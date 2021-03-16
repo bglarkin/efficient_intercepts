@@ -795,15 +795,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| BG                      |          6.40 |          8.62 |        0.35 |
-| BV                      |          7.07 |          9.93 |        0.40 |
-| G                       |          6.86 |          9.64 |        0.41 |
-| L                       |          7.34 |         10.36 |        0.41 |
-| LIC                     |          7.02 |          9.83 |        0.40 |
-| M                       |          7.24 |         10.11 |        0.40 |
-| R                       |          6.82 |          9.73 |        0.43 |
-| S                       |          6.73 |          9.63 |        0.43 |
-| WDS                     |          6.55 |          9.14 |        0.40 |
+| BG                      |          6.26 |          8.88 |        0.42 |
+| BV                      |          7.24 |          9.94 |        0.37 |
+| G                       |          6.95 |          9.89 |        0.42 |
+| L                       |          7.25 |         10.32 |        0.42 |
+| LIC                     |          6.60 |          9.40 |        0.42 |
+| M                       |          7.13 |         10.22 |        0.43 |
+| R                       |          7.07 |          9.82 |        0.39 |
+| S                       |          6.85 |          9.80 |        0.43 |
+| WDS                     |          6.40 |          9.12 |        0.42 |
 
 # Vegetation height
 
@@ -931,14 +931,21 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.61 |         13.88 |        0.44 |
+|           9.8 |         14.03 |        0.43 |
 
 # Vegetation cover in functional groups
 
 ## Data wrangling
 
 As before, the cumulative means of cover flattened before 200 point
-intercepts were reached (not shown).
+intercepts were reached (not shown). Missing (`NA`) values are difficult
+to deal with in the point-intercept data. With four possible hits per
+point intercept, it would make sense to have 800 possible samples, and
+at any point hit where vegetation is not detected, it would be coded to
+“NV” for no vegetation. That results in cover values for vegetation that
+are simply too low to compare with other survey data. Here, the “NV”
+codes for hit 1 are kept as placeholders for resampling, but the NULL
+values are discarded.
 
 ``` r
 ## Correct error with spotted knapweed so that cover for nonnative
@@ -951,7 +958,8 @@ fg_df <- spe_df %>%
          key_plant_code,
          plant_native_status,
          plant_life_cycle,
-         plant_life_form)
+         plant_life_form) %>% 
+  drop_na()
 
 fg_list <- split(fg_df, factor(fg_df$grid_point))
 
@@ -1070,12 +1078,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          3.76 |          5.59 |        0.49 |
-| native                | annual             | graminoid         |          1.44 |          1.77 |        0.23 |
-| native                | perennial          | forb              |          5.06 |          7.63 |        0.51 |
-| native                | perennial          | graminoid         |          6.38 |          8.99 |        0.41 |
-| native                | perennial          | shrub             |          6.36 |          9.45 |        0.49 |
-| nonnative             | annual             | forb              |          5.99 |          8.08 |        0.35 |
-| nonnative             | annual             | graminoid         |          6.37 |          8.79 |        0.38 |
-| nonnative             | perennial          | forb              |          5.31 |          7.44 |        0.40 |
-| nonnative             | perennial          | graminoid         |          7.00 |          9.89 |        0.41 |
+| native                | annual             | forb              |          5.58 |          7.79 |        0.40 |
+| native                | annual             | graminoid         |          2.42 |          3.22 |        0.33 |
+| native                | perennial          | forb              |          6.86 |          9.79 |        0.43 |
+| native                | perennial          | graminoid         |          7.28 |         10.36 |        0.42 |
+| native                | perennial          | shrub             |          7.23 |         10.45 |        0.45 |
+| nonnative             | annual             | forb              |          7.16 |         10.06 |        0.41 |
+| nonnative             | annual             | graminoid         |          7.32 |         10.33 |        0.41 |
+| nonnative             | perennial          | forb              |          7.02 |          9.68 |        0.38 |
+| nonnative             | perennial          | graminoid         |          7.22 |         10.13 |        0.40 |
