@@ -516,6 +516,7 @@ grcov_boot_df <-
 grcov_boot_summary <-
   grcov_boot_df %>%
   filter(intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS")) %>%
+  mutate(intercept_ground_code = recode(intercept_ground_code, BG = "bare ground", BV = "basal vegetation", G = "gravel", L = "litter", LIC = "lichen", M = "moss", R = "rock", S = "soil", WDS = "wood (stick)")) %>% 
   group_by(intercept_ground_code, sampled_n) %>%
   summarize(
     boot_mean = mean(boot_pct_mean),
