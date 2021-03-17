@@ -1,5 +1,49 @@
+#' ---
+#' title: "Empirical test of downsampling vegetation data"
+#' author: "Beau Larkin"
+#' date: "2021-03-16"
+#' output:
+#'   github_document:
+#'     toc: true
+#'     toc_depth: 2
+#' ---
+#'
+#' # Description
+#' This is the final section of the vegetation methods inquiry. It is broken into a separate
+#' section to speed loading and processing time. 
+#' 
+#' The previous report sections presented rarefaction and bootstrapping methods to 
+#' assess the efficiency of our vegetation monitoring protocol. In this section, a sample of 
+#' real data is tested for a significant contrast in plant cover among habitat types, 
+#' and then these data are downsampled systematically to fewer numbers of vegetation samples,
+#' and the tests are repeated. Ostensibly, this report will address the question, "does plant 
+#' cover in functional groups vary among restored, diversified, and uncultivated (unrestored) 
+#' grassland?" The question is merely a vehicle to facilitate an empirical test of downsampling
+#' the vegetaiton data, and the grid points used in the test were chosen to maximize contrasts. 
+#' 
+#' # Resources
+#' 
+#' ## Packages, libraries, and functions
+#' 
+#' Packages and multiple data sources must be added to the local environment before knitting 
+#' this notebook. 
+
 ## Quick-loading resources
-packages_needed = c("colorspace")
+packages_needed = c("tidyverse", "knitr", "rjson", "plotrix", "colorspace", "devtools")
+packages_installed = packages_needed %in% rownames(installed.packages())
+if (any(!packages_installed))
+  install.packages(packages_needed[!packages_installed])
+for (i in 1:length(packages_needed)) {
+  library(packages_needed[i], character.only = T)
+}
+devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
+library("ggmap")
+mpgr_map <- ggmap(get_googlemap(center = c(lon = -114.008, lat = 46.700006),
+                                zoom = 13, scale = 2,
+                                maptype ='terrain'))      
+
+## Big R Query (slow loading)
+packages_needed = c("bigrquery") # comma delimited vector of package names
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -7,37 +51,82 @@ for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
 
+#' ## API keys
+#' API keys for data access are pulled from local resources and are not available in the hosted environment. Code not shown here.
 
-# Install separately to save time
-if (!requireNamespace("devtools"))
-  install.packages("devtools")
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
-# mapping
-library("ggmap")
+#+ BQ_api_keys,echo=FALSE
+bq_auth(
+  path = paste0(getwd(), "/mpg-data-warehouse-api_key-master.json"),
+  cache = NULL
+)
+Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
+billing <- bq_test_project()
 
-register_google(key = fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$mapKey)
+#' ## Global functions and styles: `theme_bgl`
+## Load text file from local working directory
+source(paste0(getwd(), "/styles.txt"))
+
+## Calculating the 95% CI will aid plotting later
+## Uses `plotrix`
+ci_95 = function(x) {
+  std.error(x) * qnorm(0.975)
+}
+
+#' ## Data
+#' Data are loaded here, but the code is redundant with the previous notebook so it is 
+#' not shown here. 
+
+#+ spe_df, echo = FALSE
+spe_pull_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_point_intercept_gridVeg.gridVeg_point_intercept_vegetation`
+  WHERE year = 2016
+  "
+spe_pull_bq <- bq_project_query(billing, spe_pull_sql)
+spe_pull_tb <- bq_table_download(spe_pull_bq)
+spe_pull_df <- as.data.frame(spe_pull_tb)
+spe_df <-
+  spe_pull_df %>%
+  select(grid_point, transect_point, starts_with("intercept")) %>%
+  pivot_longer(starts_with("intercept"),
+               names_to = "intercept",
+               values_to = "key_plant_species")
+
+#+ spe_meta_df, echo = FALSE
+spe_meta_sql <-
+  "
+  SELECT key_plant_species, key_plant_code, plant_native_status, plant_life_cycle, plant_life_form, plant_name_sci, plant_name_common
+  FROM `mpg-data-warehouse.vegetation_species_metadata.vegetation_species_metadata`
+  "
+spe_meta_bq <- bq_project_query(billing, spe_meta_sql)
+spe_meta_tb <- bq_table_download(spe_meta_bq)
+spe_meta_df <- as.data.frame(spe_meta_tb)
+
+#+ gp_meta_df, echo = FALSE
+gp_meta_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
+  "
+gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
+gp_meta_tb <- bq_table_download(gp_meta_bq)
+gp_meta_df <- as.data.frame(gp_meta_tb)
 
 
-mpgr_map <-
-  ggmap(get_googlemap(
-    center = c(lon = -114.008, lat = 46.700006),
-    zoom = 13,
-    scale = 2,
-    maptype = 'terrain'
-  ))
+#' # Data wrangling
+#' Eleven grid points were chosen from each of three grassland habitat types. 
+#' The points were chosen from **uncultivated grassland, restored grassland,** and
+#' **forage grass diversification** sites. Points were as close as possible in 
+#' proximity and elevation. Vectors with grid point numbers will be used to filter
+#' the vegetation cover data. 
 
-
-
-
-
-
-low_grass_pts <- c(22, 72, 63, 202, 21, 199, 19, 89, 201, 203, 55)
+## Grid points in each grassland habitat type
+uncult_pts <- c(22, 72, 63, 202, 21, 199, 19, 89, 201, 203, 55)
 resto_pts <- c(571, 107, 86, 109, 87, 570, 119, 45, 108, 135, 53)
 divers_pts <- c(81, 149, 80, 194, 139, 124, 79, 138, 74, 193, 99)
 
-
-
-# Assigning integers to transect points will allow faster filtering later
+## Assigning integers to transect points will allow faster downsampling later
 trans_pts <-
   data.frame(
     direction = c(rep("E", 50), rep("S", 50), rep("W", 50), rep("N", 50)),
@@ -46,14 +135,11 @@ trans_pts <-
   ) %>%
   mutate(transect_point = paste0(direction, number))
 
-
-# Data frame `pfg_resto_df` includes 45 points in native and restored grassland to use for a model
-# comparing cover in plant functional groups.
-# Dplyr function `mutate` doesn't work properly if library `car` is loaded
+## `pfg_resto_df` is the core dataset for this exploration
 pfg_resto_df <-
   spe_df %>%
   drop_na() %>%
-  filter(grid_point %in% c(low_grass_pts, resto_pts, divers_pts)) %>%
+  filter(grid_point %in% c(uncult_pts, resto_pts, divers_pts)) %>%
   left_join(spe_meta_df, by = "key_plant_species") %>%
   left_join(trans_pts, by = "transect_point") %>%
   select(grid_point,
@@ -81,95 +167,94 @@ pfg_resto_df <-
   glimpse()
 
 
+#' # Results
+#' The map below shows the grid points which were used for this test.
 
-
-
-# Need vars to control plotting
 map_data <-
   pfg_resto_df %>%
   distinct(grid_point, habitat) %>%
   left_join(gp_meta_df %>% select(grid_point, lat, long), by = "grid_point")
 
-# Plot of selected year
+#+ pfg_test_sites
 mpgr_map +
   geom_point(
     data = map_data,
     aes(x = long, y = lat, fill = habitat),
-    size = 5,
+    size = 3,
     shape = 21,
     alpha = 0.7
   ) +
-  scale_fill_discrete_sequential(name = "grassland type", palette = "terrain") +
+  scale_fill_discrete_sequential(name = "grassland type", palette = "viridis") +
   theme_bgl
 
+#' Downsampling to fewer point intercepts per grid point involves similar operations
+#' regardless of how many point intercepts are desired, so a function for this 
+#' will save space and reduce errors.
+#' 
+#' * `d` = divisor to systematically eliminate point intercepts using the modulus (`%%`) function
+#' * `pts` = number of point intercepts desired
 
-
-
-
-
-
-
-
-
-
-
-
-
-# Function to downsample the point intercept data
-# d = divisor to systematically eliminate point intercepts
-# pts = number of point intercepts desired
 downsample <- function(d, pts) {
   pfg_resto_df %>%
-    filter(pt_int %% d == 0)# %>%
-  # group_by(habitat, grid_point, plant_life_cycle, plant_life_form, plant_native_status) %>%
-  # summarize(pct_cvr = sum(n) / pts * 100, .groups = "drop") %>% ungroup() %>%
-  # filter(plant_life_cycle == "perennial",
-  #        plant_life_form %in% c("forb", "graminoid"),
-  #        plant_native_status %in% c("native", "nonnative")
-  # ) %>%
-  # select(-plant_life_cycle) %>%
-  # complete(plant_life_form, plant_native_status, nesting(habitat, grid_point), fill = list(pct_cvr = 0))
+    filter(pt_int %% d == 0) %>%
+  group_by(habitat, grid_point, plant_life_cycle, plant_life_form, plant_native_status) %>%
+  summarize(pct_cvr = sum(n) / pts * 100, .groups = "drop") %>% ungroup() %>%
+  filter(plant_life_cycle == "perennial",
+         plant_life_form %in% c("forb", "graminoid"),
+         plant_native_status %in% c("native", "nonnative")
+  ) %>%
+  select(-plant_life_cycle) %>%
+  complete(plant_life_form, plant_native_status, nesting(habitat, grid_point), fill = list(pct_cvr = 0))
 }
 
+## Apply the `downsample()` function
 pfg_200 <- downsample(1, 200)
 pfg_100 <- downsample(2, 100)
 pfg_40 <- downsample(5, 40)
 
-# Visuals and models
+## Fit ANOVA models with interaction of all terms
 aov_200 <-
   aov(pct_cvr ~ habitat * plant_native_status * plant_life_form, data = pfg_200)
-summary(aov_200)
-ggplot(pfg_200, aes(x = habitat, y = pct_cvr)) +
-  geom_boxplot() +
-  facet_grid(
-    rows = vars(plant_life_form),
-    cols = vars(plant_native_status),
-    scales = "free_y"
-  )
-
 aov_100 <-
   aov(pct_cvr ~ habitat * plant_native_status * plant_life_form, data = pfg_100)
-summary(aov_100)
-ggplot(pfg_100, aes(x = habitat, y = pct_cvr)) +
-  geom_boxplot() +
-  facet_grid(
-    rows = vars(plant_life_form),
-    cols = vars(plant_native_status),
-    scales = "free_y"
-  )
-
 aov_40 <-
   aov(pct_cvr ~ habitat * plant_native_status * plant_life_form, data = pfg_40)
-summary(aov_40)
-ggplot(pfg_40, aes(x = habitat, y = pct_cvr)) +
-  geom_boxplot() +
+
+#' ## Model results
+#' The ANOVA fit to `aov_200` shows the result using all available data. The data are 
+#' balanced and orthogonal. In the model result, all terms are 
+#' highly significant, including the three-way interaction. These data violate some assumptions
+#' of an ANOVA test, namely normal distributions and constant variance. These violations
+#' might make it unwise to draw management conclusions from this test, but ANOVA is robust 
+#' enough against violated assumptions to at least allow a comparison of model performance with 
+#' differently subsetted data. 
+#' 
+#' An exploration of post-hoc
+#' contrasts is beyond the scope of this report, but a visual examination of the data
+#' makes the interaction obvious. Cover of nonnative grasses is relatively low in 
+#' uncultivated sites and intermediate in restored sites, but the situation is reversed
+#' with the other functional group combinations. 
+
+summary(aov_200)
+#+ pfg_200_boxplot
+ggplot(pfg_200, aes(x = habitat, y = pct_cvr)) +
+  geom_boxplot(fill = "gray90") +
   facet_grid(
     rows = vars(plant_life_form),
     cols = vars(plant_native_status),
     scales = "free_y"
-  )
+  ) +
+  labs(x = NULL, y = "percent cover") +
+  theme_bgl
 
+#' Downsampling to 100 and 40 point intercepts per grid point, we see very little change 
+#' to the model and no conclusions would be altered. 
+summary(aov_100)
+summary(aov_40)
 
+#' Graphically, it appears that the means and confidence intervals at 200 and 100 point 
+#' intercepts are very similar. At 40 point intercepts, the mean shows increased volatility
+#' and confidence intervals increase. 
 
 pfg_means <-
   bind_rows(
@@ -186,7 +271,7 @@ pfg_means <-
     .groups = "drop"
   )
 
-
+#+ pfg_means_and_CIs
 ggplot(pfg_means, aes(x = habitat, y = mean_pct_cvr, group = pt_int)) +
   geom_col(aes(fill = pt_int),
            color = "gray20",
@@ -206,3 +291,16 @@ ggplot(pfg_means, aes(x = habitat, y = mean_pct_cvr, group = pt_int)) +
                     values = c("gray30", "gray50", "gray70")) +
   labs(x = "", y = "percent cover") +
   theme_bgl
+
+#' # Discussion
+#' The final report will contain more interpretation, but for now it is important to 
+#' restate that this is a crude application of an ANOVA, and a three-way interaction would
+#' be difficult to interpret under the best of circumstances. What we can show here is that 
+#' the vegetation monitoring data seems to capture differences in plant functional group cover 
+#' well at greatly reduced sampling frequencies. 
+#' 
+#' This doesn't inform what the effect of downsampling would be on analysis of multivariate 
+#' plant community data. Presumably, rare species would be lost with downsampling, and the 
+#' consequences of that are hard to predict. Also, even with a plan to separate means of 
+#' cover in functional groups, it's unlikely that a real case would be as ideal as these test 
+#' data are, and assumptions of model fit would need to be better observed. 
