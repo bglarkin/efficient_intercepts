@@ -747,6 +747,7 @@ a linear fashion to its value at 200 point intercepts. With fewer than
 grcov_boot_summary <-
   grcov_boot_df %>%
   filter(intercept_ground_code %in% c("BG", "BV", "G", "L", "LIC", "M", "R", "S", "WDS")) %>%
+  mutate(intercept_ground_code = recode(intercept_ground_code, BG = "bare ground", BV = "basal vegetation", G = "gravel", L = "litter", LIC = "lichen", M = "moss", R = "rock", S = "soil", WDS = "wood (stick)")) %>% 
   group_by(intercept_ground_code, sampled_n) %>%
   summarize(
     boot_mean = mean(boot_pct_mean),
@@ -795,15 +796,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| BG                      |          6.26 |          8.88 |        0.42 |
-| BV                      |          7.24 |          9.94 |        0.37 |
-| G                       |          6.95 |          9.89 |        0.42 |
-| L                       |          7.25 |         10.32 |        0.42 |
-| LIC                     |          6.60 |          9.40 |        0.42 |
-| M                       |          7.13 |         10.22 |        0.43 |
-| R                       |          7.07 |          9.82 |        0.39 |
-| S                       |          6.85 |          9.80 |        0.43 |
-| WDS                     |          6.40 |          9.12 |        0.42 |
+| bare ground             |          6.45 |          8.83 |        0.37 |
+| basal vegetation        |          7.03 |         10.09 |        0.44 |
+| gravel                  |          7.01 |          9.62 |        0.37 |
+| lichen                  |          6.85 |          9.55 |        0.39 |
+| litter                  |          7.29 |         10.33 |        0.42 |
+| moss                    |          7.13 |         10.23 |        0.43 |
+| rock                    |          6.84 |          9.99 |        0.46 |
+| soil                    |          6.98 |         10.00 |        0.43 |
+| wood (stick)            |          6.60 |          8.70 |        0.32 |
 
 # Vegetation height
 
@@ -931,7 +932,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|           9.8 |         14.03 |        0.43 |
+|          9.89 |         14.08 |        0.42 |
 
 # Vegetation cover in functional groups
 
@@ -1078,12 +1079,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.58 |          7.79 |        0.40 |
-| native                | annual             | graminoid         |          2.42 |          3.22 |        0.33 |
-| native                | perennial          | forb              |          6.86 |          9.79 |        0.43 |
-| native                | perennial          | graminoid         |          7.28 |         10.36 |        0.42 |
-| native                | perennial          | shrub             |          7.23 |         10.45 |        0.45 |
-| nonnative             | annual             | forb              |          7.16 |         10.06 |        0.41 |
-| nonnative             | annual             | graminoid         |          7.32 |         10.33 |        0.41 |
-| nonnative             | perennial          | forb              |          7.02 |          9.68 |        0.38 |
-| nonnative             | perennial          | graminoid         |          7.22 |         10.13 |        0.40 |
+| native                | annual             | forb              |          5.37 |          7.59 |        0.41 |
+| native                | annual             | graminoid         |          2.41 |          3.15 |        0.31 |
+| native                | perennial          | forb              |          6.90 |          9.81 |        0.42 |
+| native                | perennial          | graminoid         |          7.21 |         10.37 |        0.44 |
+| native                | perennial          | shrub             |          7.35 |         10.36 |        0.41 |
+| nonnative             | annual             | forb              |          7.03 |          9.80 |        0.39 |
+| nonnative             | annual             | graminoid         |          7.15 |         10.28 |        0.44 |
+| nonnative             | perennial          | forb              |          7.00 |          9.59 |        0.37 |
+| nonnative             | perennial          | graminoid         |          7.33 |         10.19 |        0.39 |
