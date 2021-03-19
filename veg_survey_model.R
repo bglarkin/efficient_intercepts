@@ -36,14 +36,10 @@ if (any(!packages_installed))
 for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
-library("ggmap")
-mpgr_map <- ggmap(get_googlemap(center = c(lon = -114.008, lat = 46.700006),
-                                zoom = 13, scale = 2,
-                                maptype ='terrain'))      
+devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
 
 ## Big R Query (slow loading)
-packages_needed = c("bigrquery") # comma delimited vector of package names
+packages_needed = c("bigrquery", "ggmap") # comma delimited vector of package names
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -61,6 +57,10 @@ bq_auth(
 )
 Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
 billing <- bq_test_project()
+
+#+ Google_maps_key,echo=FALSE
+mapKey <- fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$mapKey
+register_google(key = mapKey)
 
 #' ## Global functions and styles: `theme_bgl`
 ## Load text file from local working directory
@@ -174,6 +174,9 @@ map_data <-
   pfg_resto_df %>%
   distinct(grid_point, habitat) %>%
   left_join(gp_meta_df %>% select(grid_point, lat, long), by = "grid_point")
+mpgr_map <- ggmap(get_googlemap(center = c(lon = -114.008, lat = 46.700006),
+                                zoom = 13, scale = 2,
+                                maptype ='terrain'))     
 
 #+ pfg_test_sites
 mpgr_map +
@@ -229,13 +232,13 @@ aov_40 <-
 #' enough against violated assumptions to at least allow a comparison of model performance with 
 #' differently subsetted data. 
 #' 
-#' An exploration of post-hoc
-#' contrasts is beyond the scope of this report, but a visual examination of the data
+#' A visual examination of the data
 #' makes the interaction obvious. Cover of nonnative grasses is relatively low in 
 #' uncultivated sites and intermediate in restored sites, but the situation is reversed
 #' with the other functional group combinations. 
 
 summary(aov_200)
+post200 <- data.frame(TukeyHSD(aov_200)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
 #+ pfg_200_boxplot
 ggplot(pfg_200, aes(x = habitat, y = pct_cvr)) +
   geom_boxplot(fill = "gray90") +
@@ -249,8 +252,38 @@ ggplot(pfg_200, aes(x = habitat, y = pct_cvr)) +
 
 #' Downsampling to 100 and 40 point intercepts per grid point, we see very little change 
 #' to the model and no conclusions would be altered. 
+
 summary(aov_100)
+post100 <- data.frame(TukeyHSD(aov_100)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
 summary(aov_40)
+post40 <- data.frame(TukeyHSD(aov_40)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
+
+#' Post-hoc analysis with a three-way interaction term is difficult to interpret and beyond the 
+#' scope of this report. Interpretation isn't necessary to show that similar performance of 
+#' downsampled models carries through to pairwise contrasts. 
+
+post <-
+  bind_rows(
+    "200" = post200,
+    "100" = post100,
+    "40" = post40,
+    .id = "sampled"
+  )
+#+ post_hoc_table
+pivot_wider(
+  post[,-c(3, 4, 5)],
+  values_from = p.adj,
+  names_from = sampled,
+  names_prefix = "pt_int_"
+) %>%
+  kable(format = "pandoc")
+
+#' With the results of Tukey's HSD post-hoc test filtered to _p_ values less than 0.05 and only 
+#' contrasts with three-way interactions considered, little difference is apparent between
+#' data sets averaged from 200, 100, or 40 point intercepts. Between data sets with 200 or 100 point
+#' intercepts, _p_ values mostly remain in the same order of magnitude. With the data set filtered to 
+#' 40 point intercepts, the _p_ values increase by roughly an order of magnitude, again 
+#' signaling some increased volatility in means. 
 
 #' Graphically, it appears that the means and confidence intervals at 200 and 100 point 
 #' intercepts are very similar. At 40 point intercepts, the mean shows increased volatility
