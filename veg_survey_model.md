@@ -41,7 +41,7 @@ Packages and multiple data sources must be added to the local
 environment before knitting this notebook.
 
 ``` r
-## Quick-loading resources
+# Quick-loading resources
 packages_needed = c("tidyverse", "knitr", "rjson", "plotrix", "colorspace", "devtools")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
@@ -51,60 +51,10 @@ for (i in 1:length(packages_needed)) {
 }
 ```
 
-    ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──
-
-    ## ✓ ggplot2 3.3.3     ✓ purrr   0.3.4
-    ## ✓ tibble  3.1.0     ✓ dplyr   1.0.5
-    ## ✓ tidyr   1.1.3     ✓ stringr 1.4.0
-    ## ✓ readr   1.4.0     ✓ forcats 0.5.1
-
-    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-    ## x dplyr::filter() masks stats::filter()
-    ## x dplyr::lag()    masks stats::lag()
-
-    ## Loading required package: usethis
-
 ``` r
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)
-```
-
-    ## Downloading GitHub repo dkahle/ggmap@tidyup
-
-    ## 
-    ##      checking for file ‘/private/var/folders/_p/84bdw16j7314rfhj77zsxzm9_s0jdq/T/RtmpdMXlfj/remotes947a3934de8/dkahle-ggmap-2d756e5/DESCRIPTION’ ...  ✓  checking for file ‘/private/var/folders/_p/84bdw16j7314rfhj77zsxzm9_s0jdq/T/RtmpdMXlfj/remotes947a3934de8/dkahle-ggmap-2d756e5/DESCRIPTION’
-    ##   ─  preparing ‘ggmap’:
-    ##      checking DESCRIPTION meta-information ...  ✓  checking DESCRIPTION meta-information
-    ##   ─  checking for LF line-endings in source and make files and shell scripts
-    ##   ─  checking for empty or unneeded directories
-    ##    Removed empty directory ‘ggmap/.github’
-    ##   ─  building ‘ggmap_3.0.0.tar.gz’
-    ##      Warning: invalid uid value replaced by that for user 'nobody'
-    ##    Warning: invalid gid value replaced by that for user 'nobody'
-    ##      
-    ## 
-
-    ## Installing package into '/Users/blarkin/Library/R/4.0/library'
-    ## (as 'lib' is unspecified)
-
-``` r
-library("ggmap")
-```
-
-    ## Google's Terms of Service: https://cloud.google.com/maps-platform/terms/.
-
-    ## Please cite ggmap if you use it! See citation("ggmap") for details.
-
-``` r
-mpgr_map <- ggmap(get_googlemap(center = c(lon = -114.008, lat = 46.700006),
-                                zoom = 13, scale = 2,
-                                maptype ='terrain'))      
-```
-
-    ## Source : https://maps.googleapis.com/maps/api/staticmap?center=46.700006,-114.008&zoom=13&size=640x640&scale=2&maptype=terrain&key=xxx-4x-49Z5StPBSu3RyhshUzk4
-
-``` r
-## Big R Query (slow loading)
-packages_needed = c("bigrquery") # comma delimited vector of package names
+# Big R Query
+# ggmap package installed from GitHub using `devtools` (not shown)
+packages_needed = c("bigrquery", "ggmap") # comma delimited vector of package names
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -121,11 +71,11 @@ available in the hosted environment. Code not shown here.
 ## Global functions and styles: `theme_bgl`
 
 ``` r
-## Load text file from local working directory
+# Load text file from local working directory
 source(paste0(getwd(), "/styles.txt"))
 
-## Calculating the 95% CI will aid plotting later
-## Uses `plotrix`
+# Calculating the 95% CI will aid plotting later
+# Uses `plotrix`
 ci_95 = function(x) {
   std.error(x) * qnorm(0.975)
 }
@@ -145,12 +95,12 @@ close as possible in proximity and elevation. Vectors with grid point
 numbers will be used to filter the vegetation cover data.
 
 ``` r
-## Grid points in each grassland habitat type
+# Grid points in each grassland habitat type
 uncult_pts <- c(22, 72, 63, 202, 21, 199, 19, 89, 201, 203, 55)
 resto_pts <- c(571, 107, 86, 109, 87, 570, 119, 45, 108, 135, 53)
 divers_pts <- c(81, 149, 80, 194, 139, 124, 79, 138, 74, 193, 99)
 
-## Assigning integers to transect points will allow faster downsampling later
+# Assigning integers to transect points will allow faster downsampling later
 trans_pts <-
   data.frame(
     direction = c(rep("E", 50), rep("S", 50), rep("W", 50), rep("N", 50)),
@@ -159,7 +109,7 @@ trans_pts <-
   ) %>%
   mutate(transect_point = paste0(direction, number))
 
-## `pfg_resto_df` is the core dataset for this exploration
+# `pfg_resto_df` is the core dataset for this exploration
 pfg_resto_df <-
   spe_df %>%
   drop_na() %>%
@@ -210,7 +160,12 @@ map_data <-
   pfg_resto_df %>%
   distinct(grid_point, habitat) %>%
   left_join(gp_meta_df %>% select(grid_point, lat, long), by = "grid_point")
+mpgr_map <- ggmap(get_googlemap(center = c(lon = -114.008, lat = 46.700006),
+                                zoom = 13, scale = 2,
+                                maptype ='terrain'))     
 ```
+
+    ## Source : https://maps.googleapis.com/maps/api/staticmap?center=46.700006,-114.008&zoom=13&size=640x640&scale=2&maptype=terrain&key=xxx-4x-49Z5StPBSu3RyhshUzk4
 
 ``` r
 mpgr_map +
@@ -249,12 +204,12 @@ downsample <- function(d, pts) {
   complete(plant_life_form, plant_native_status, nesting(habitat, grid_point), fill = list(pct_cvr = 0))
 }
 
-## Apply the `downsample()` function
+# Apply the `downsample()` function
 pfg_200 <- downsample(1, 200)
 pfg_100 <- downsample(2, 100)
 pfg_40 <- downsample(5, 40)
 
-## Fit ANOVA models with interaction of all terms
+# Fit ANOVA models with interaction of all terms
 aov_200 <-
   aov(pct_cvr ~ habitat * plant_native_status * plant_life_form, data = pfg_200)
 aov_100 <-
@@ -274,9 +229,8 @@ management conclusions from this test, but ANOVA is robust enough
 against violated assumptions to at least allow a comparison of model
 performance with differently subsetted data.
 
-An exploration of post-hoc contrasts is beyond the scope of this report,
-but a visual examination of the data makes the interaction obvious.
-Cover of nonnative grasses is relatively low in uncultivated sites and
+A visual examination of the data makes the interaction obvious. Cover of
+nonnative grasses is relatively low in uncultivated sites and
 intermediate in restored sites, but the situation is reversed with the
 other functional group combinations.
 
@@ -304,6 +258,10 @@ summary(aov_200)
     ## Residuals                                      
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+post200 <- data.frame(TukeyHSD(aov_200)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
+```
 
 ``` r
 ggplot(pfg_200, aes(x = habitat, y = pct_cvr)) +
@@ -348,6 +306,7 @@ summary(aov_100)
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ``` r
+post100 <- data.frame(TukeyHSD(aov_100)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
 summary(aov_40)
 ```
 
@@ -372,9 +331,75 @@ summary(aov_40)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Graphically, it appears that the means and confidence intervals at 200
-and 100 point intercepts are very similar. At 40 point intercepts, the
-mean shows increased volatility and confidence intervals increase.
+``` r
+post40 <- data.frame(TukeyHSD(aov_40)[[7]]) %>% filter(p.adj < 0.05) %>% rownames_to_column()
+```
+
+Post-hoc analysis with a three-way interaction term is difficult to
+interpret and beyond the scope of this report. Interpretation isn’t
+necessary to show that similar performance of downsampled models carries
+through to pairwise contrasts.
+
+``` r
+post <-
+  bind_rows(
+    "200" = post200,
+    "100" = post100,
+    "40" = post40,
+    .id = "sampled"
+  )
+```
+
+``` r
+pivot_wider(
+  post[,-c(3, 4, 5)],
+  values_from = p.adj,
+  names_from = sampled,
+  names_prefix = "pt_int_"
+) %>%
+  kable(format = "pandoc")
+```
+
+| rowname                                                          | pt\_int\_200 | pt\_int\_100 | pt\_int\_40 |
+|:-----------------------------------------------------------------|-------------:|-------------:|------------:|
+| uncultivated:native:graminoid-diversified:native:forb            |    0.0005538 |    0.0006486 |   0.0061502 |
+| diversified:nonnative:graminoid-diversified:native:forb          |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-diversified:native:forb             |    0.0002952 |    0.0003419 |   0.0004904 |
+| uncultivated:native:graminoid-restored:native:forb               |    0.0007447 |    0.0008665 |   0.0097964 |
+| diversified:nonnative:graminoid-restored:native:forb             |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-restored:native:forb                |    0.0004001 |    0.0004604 |   0.0008716 |
+| diversified:nonnative:graminoid-uncultivated:native:forb         |    0.0000000 |    0.0000000 |   0.0000000 |
+| uncultivated:native:graminoid-diversified:nonnative:forb         |    0.0005013 |    0.0006486 |   0.0055579 |
+| diversified:nonnative:graminoid-diversified:nonnative:forb       |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-diversified:nonnative:forb          |    0.0002666 |    0.0003419 |   0.0004381 |
+| uncultivated:native:graminoid-restored:nonnative:forb            |    0.0016094 |    0.0017580 |   0.0266769 |
+| diversified:nonnative:graminoid-restored:nonnative:forb          |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-restored:nonnative:forb             |    0.0008835 |    0.0009536 |   0.0027462 |
+| uncultivated:native:graminoid-uncultivated:nonnative:forb        |    0.0124114 |    0.0106182 |          NA |
+| diversified:nonnative:graminoid-uncultivated:nonnative:forb      |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-uncultivated:nonnative:forb         |    0.0073225 |    0.0061426 |   0.0192426 |
+| uncultivated:native:graminoid-diversified:native:graminoid       |    0.0012388 |    0.0014593 |   0.0111216 |
+| diversified:nonnative:graminoid-diversified:native:graminoid     |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-diversified:native:graminoid        |    0.0006749 |    0.0007871 |   0.0009548 |
+| uncultivated:native:graminoid-restored:native:graminoid          |    0.0029457 |    0.0043385 |          NA |
+| diversified:nonnative:graminoid-restored:native:graminoid        |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-restored:native:graminoid           |    0.0016478 |    0.0024247 |   0.0058811 |
+| diversified:nonnative:graminoid-uncultivated:native:graminoid    |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-diversified:nonnative:graminoid     |    0.0000000 |    0.0000000 |   0.0000000 |
+| uncultivated:nonnative:graminoid-diversified:nonnative:graminoid |    0.0000000 |    0.0000000 |   0.0000000 |
+| restored:nonnative:graminoid-uncultivated:native:forb            |           NA |           NA |   0.0325028 |
+
+With the results of Tukey’s HSD post-hoc test filtered to *p* values
+less than 0.05 and only contrasts with three-way interactions
+considered, little difference is apparent between data sets averaged
+from 200, 100, or 40 point intercepts. Between data sets with 200 or 100
+point intercepts, *p* values mostly remain in the same order of
+magnitude. With the data set filtered to 40 point intercepts, the *p*
+values increase by roughly an order of magnitude, again signaling some
+increased volatility in means. Graphically, it appears that the means
+and confidence intervals at 200 and 100 point intercepts are very
+similar. At 40 point intercepts, the mean shows increased volatility and
+confidence intervals increase.
 
 ``` r
 pfg_means <-

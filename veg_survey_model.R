@@ -28,7 +28,8 @@
 #' Packages and multiple data sources must be added to the local environment before knitting 
 #' this notebook. 
 
-## Quick-loading resources
+#+ install_1,message=FALSE
+# Quick-loading resources
 packages_needed = c("tidyverse", "knitr", "rjson", "plotrix", "colorspace", "devtools")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
@@ -36,9 +37,13 @@ if (any(!packages_installed))
 for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
+
+#+ install_2,include=FALSE
 devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
 
-## Big R Query (slow loading)
+#+ install_3,message=FALSE
+# Big R Query
+# ggmap package installed from GitHub using `devtools` (not shown)
 packages_needed = c("bigrquery", "ggmap") # comma delimited vector of package names
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
@@ -63,11 +68,11 @@ mapKey <- fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$mapKey
 register_google(key = mapKey)
 
 #' ## Global functions and styles: `theme_bgl`
-## Load text file from local working directory
+# Load text file from local working directory
 source(paste0(getwd(), "/styles.txt"))
 
-## Calculating the 95% CI will aid plotting later
-## Uses `plotrix`
+# Calculating the 95% CI will aid plotting later
+# Uses `plotrix`
 ci_95 = function(x) {
   std.error(x) * qnorm(0.975)
 }
@@ -121,12 +126,12 @@ gp_meta_df <- as.data.frame(gp_meta_tb)
 #' proximity and elevation. Vectors with grid point numbers will be used to filter
 #' the vegetation cover data. 
 
-## Grid points in each grassland habitat type
+# Grid points in each grassland habitat type
 uncult_pts <- c(22, 72, 63, 202, 21, 199, 19, 89, 201, 203, 55)
 resto_pts <- c(571, 107, 86, 109, 87, 570, 119, 45, 108, 135, 53)
 divers_pts <- c(81, 149, 80, 194, 139, 124, 79, 138, 74, 193, 99)
 
-## Assigning integers to transect points will allow faster downsampling later
+# Assigning integers to transect points will allow faster downsampling later
 trans_pts <-
   data.frame(
     direction = c(rep("E", 50), rep("S", 50), rep("W", 50), rep("N", 50)),
@@ -135,7 +140,7 @@ trans_pts <-
   ) %>%
   mutate(transect_point = paste0(direction, number))
 
-## `pfg_resto_df` is the core dataset for this exploration
+# `pfg_resto_df` is the core dataset for this exploration
 pfg_resto_df <-
   spe_df %>%
   drop_na() %>%
@@ -210,12 +215,12 @@ downsample <- function(d, pts) {
   complete(plant_life_form, plant_native_status, nesting(habitat, grid_point), fill = list(pct_cvr = 0))
 }
 
-## Apply the `downsample()` function
+# Apply the `downsample()` function
 pfg_200 <- downsample(1, 200)
 pfg_100 <- downsample(2, 100)
 pfg_40 <- downsample(5, 40)
 
-## Fit ANOVA models with interaction of all terms
+# Fit ANOVA models with interaction of all terms
 aov_200 <-
   aov(pct_cvr ~ habitat * plant_native_status * plant_life_form, data = pfg_200)
 aov_100 <-
@@ -337,3 +342,4 @@ ggplot(pfg_means, aes(x = habitat, y = mean_pct_cvr, group = pt_int)) +
 #' consequences of that are hard to predict. Also, even with a plan to separate means of 
 #' cover in functional groups, it's unlikely that a real case would be as ideal as these test 
 #' data are, and assumptions of model fit would need to be better observed. 
+
