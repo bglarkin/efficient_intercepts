@@ -370,7 +370,7 @@ spe_pred %>%
 
 #' With the data filtered to only uncultivated grassland habitat, the pattern is similar, so it isn't shown here.
 #' The decrease in species richness with rarefaction to fewer point intercepts is similar in trend and magnitude.
-
+#'
 #' ### Contribution of quadrats to point-intercept data
 #'
 #' The quadrat survey can potentially add more species than were missed by point-intercept methods at

@@ -574,7 +574,9 @@ spe_pred %>%
 With the data filtered to only uncultivated grassland habitat, the
 pattern is similar, so it isn’t shown here. The decrease in species
 richness with rarefaction to fewer point intercepts is similar in trend
-and magnitude. \#\#\# Contribution of quadrats to point-intercept data
+and magnitude.
+
+### Contribution of quadrats to point-intercept data
 
 The quadrat survey can potentially add more species than were missed by
 point-intercept methods at rarefaction to 100 point intercepts. With
@@ -796,15 +798,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| bare ground             |          6.45 |          8.83 |        0.37 |
-| basal vegetation        |          7.03 |         10.09 |        0.44 |
-| gravel                  |          7.01 |          9.62 |        0.37 |
-| lichen                  |          6.85 |          9.55 |        0.39 |
-| litter                  |          7.29 |         10.33 |        0.42 |
-| moss                    |          7.13 |         10.23 |        0.43 |
-| rock                    |          6.84 |          9.99 |        0.46 |
-| soil                    |          6.98 |         10.00 |        0.43 |
-| wood (stick)            |          6.60 |          8.70 |        0.32 |
+| bare ground             |          6.27 |          8.69 |        0.39 |
+| basal vegetation        |          7.22 |          9.96 |        0.38 |
+| gravel                  |          6.80 |          9.89 |        0.45 |
+| lichen                  |          6.71 |          9.34 |        0.39 |
+| litter                  |          7.31 |         10.47 |        0.43 |
+| moss                    |          7.12 |         10.14 |        0.42 |
+| rock                    |          6.81 |          9.48 |        0.39 |
+| soil                    |          6.94 |         10.05 |        0.45 |
+| wood (stick)            |          6.65 |          9.03 |        0.36 |
 
 # Vegetation height
 
@@ -932,7 +934,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.89 |         14.08 |        0.42 |
+|          9.55 |          13.9 |        0.46 |
 
 # Vegetation cover in functional groups
 
@@ -1079,12 +1081,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.37 |          7.59 |        0.41 |
-| native                | annual             | graminoid         |          2.41 |          3.15 |        0.31 |
-| native                | perennial          | forb              |          6.90 |          9.81 |        0.42 |
-| native                | perennial          | graminoid         |          7.21 |         10.37 |        0.44 |
-| native                | perennial          | shrub             |          7.35 |         10.36 |        0.41 |
-| nonnative             | annual             | forb              |          7.03 |          9.80 |        0.39 |
-| nonnative             | annual             | graminoid         |          7.15 |         10.28 |        0.44 |
-| nonnative             | perennial          | forb              |          7.00 |          9.59 |        0.37 |
-| nonnative             | perennial          | graminoid         |          7.33 |         10.19 |        0.39 |
+| native                | annual             | forb              |          5.41 |          7.54 |        0.39 |
+| native                | annual             | graminoid         |          2.40 |          3.19 |        0.33 |
+| native                | perennial          | forb              |          7.03 |          9.71 |        0.38 |
+| native                | perennial          | graminoid         |          7.21 |         10.32 |        0.43 |
+| native                | perennial          | shrub             |          7.18 |         10.22 |        0.42 |
+| nonnative             | annual             | forb              |          7.11 |         10.07 |        0.42 |
+| nonnative             | annual             | graminoid         |          7.11 |         10.29 |        0.45 |
+| nonnative             | perennial          | forb              |          6.91 |          9.75 |        0.41 |
+| nonnative             | perennial          | graminoid         |          7.22 |         10.18 |        0.41 |
