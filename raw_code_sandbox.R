@@ -311,10 +311,11 @@ yvp_spe_pred <-
 # Producing the results is straightforward, but processing and downsampling the species 
 # data will be the challenge. Further work done in an independent script and will 
 # eventually move to the veg survey report.
-spe <- spe_mat_list[[1]][1, ]
-N0 <- dim(spe)[2]
-N1 <- exp(diversity(spe))
-N2 <- diversity(spe, "inv")
+spe <- spe_mat_list[[1]][1, ] %>% as.matrix() %>% drop()
+spe[spe > 0]
+N0 <- length(spe[spe > 0])
+N1 <- exp(diversity(spe[spe > 0]))
+N2 <- diversity(spe[spe > 0], "inv")
 E10 <- N1 / N0
 E20 <- N2 / N0
 (div <-  data.frame(N0, N1, N2, E10, E20))
