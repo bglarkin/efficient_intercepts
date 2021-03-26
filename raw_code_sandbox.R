@@ -306,6 +306,20 @@ yvp_spe_pred <-
            sep = "_",
            remove = FALSE)
 
+# Produce Hill numbers and ratios
+# Will eventually need a function to apply to each list element
+# Producing the results is straightforward, but processing and downsampling the species 
+# data will be the challenge. Further work done in an independent script and will 
+# eventually move to the veg survey report.
+spe <- spe_mat_list[[1]][1, ]
+N0 <- dim(spe)[2]
+N1 <- exp(diversity(spe))
+N2 <- diversity(spe, "inv")
+E10 <- N1 / N0
+E20 <- N2 / N0
+(div <-  data.frame(N0, N1, N2, E10, E20))
+
+
 # Results
 # ——————————————————————————————————
 
