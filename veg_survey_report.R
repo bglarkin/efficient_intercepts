@@ -221,7 +221,7 @@ spe_fun = function(x) {
   )
 }
 
-## Rarefy the species data (this step takes a few minutes).
+## A dataframe is needed to store the rarefaction results
 spe_pred <-
   lapply(spe_mat_list, spe_fun) %>%
   bind_rows(.id = "id") %>%
@@ -282,7 +282,7 @@ qspe_fun = function(x) {
   )
 }
 
-## This is where the accumulations at desired points is calculated
+## A dataframe is needed to store the rarefaction results
 qspe_pred <-
   lapply(qspe_mat_list, qspe_fun) %>%
   bind_rows(.id = "id") %>%
@@ -295,6 +295,73 @@ qspe_pred <-
            remove = FALSE)
 ## 13 rows of predicted values are missing because (presumably) some quadrats detected
 ## no species that weren't also detected by point-intercept surveys
+
+#' ### Diversity indices with point-intercept data
+#' Species richness or abundance may decline as a result of downsampling, but on their own, such
+#' declines aren't evidence that the data will be compromised. If downsampling removes some rare 
+#' species and evenly reduces abundance of common species, the results of downstream analyses
+#' (multivariate decomposition, functional group summaries, etc.) may be unaffected. A quick way to 
+#' examine the effect of downsampling on community metrics is to calculate diversity indices on 
+#' downsampled data. Here, the species data are downsampled and resampled, using a bootstrapping technique
+#' to produce means and confidence intervals of Hill Numbers, a common set of diversity indices. Read
+#' more about Hill Numbers in 
+#' [Diversity and Evenness: A Unifying Notation and Its Consequences (Hill 1973)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1934352)
+
+# The bootstrap function uses the same `spe_mat_list` for input.
+# Nested lists are created because the samples-species matrices
+# are ragged and cannot be bound into a single data frame.
+div_boot <- function(pts, B) {
+  lapply(spe_mat_list, function(x, pts, B) {
+    sampled <- rownames_to_column(x, var = "p_int") %>%
+      slice_sample(n = pts * B, replace = TRUE) %>%
+      mutate(boot_run = paste0("boot_", rep(1:B, each = pts)))
+    
+    boot_sep <- split(sampled, sampled$boot_run)
+    
+    lapply(boot_sep, function(x) {
+      spe_sum <- x %>% 
+        select(-p_int,-boot_run) %>%
+        colSums()
+      
+      data.frame(
+        N0  = length(spe_sum[spe_sum > 0]),
+        N1  = exp(diversity(spe_sum[spe_sum > 0])),
+        N2  = diversity(spe_sum[spe_sum > 0], "inv"),
+        E10 = N1 / N0,
+        E20 = N2 / N0
+      )
+      
+    }) %>%
+      bind_rows()
+    
+  }, pts = pts, B = B)
+}
+
+# A second function processes the diversity index summaries.
+div_summarize <- function(pts, B) {
+  lapply(div_boot(pts, B), function(x)
+    (colMeans(x))) %>%
+    bind_rows(.id = "grid_point") %>%
+    pivot_longer(N0:E20, names_to = "index", values_to = "value") %>%
+    group_by(index) %>%
+    summarize(
+      index_avg = mean(value),
+      index_se  = sd(value),
+      .groups   = "drop"
+    ) %>%
+    mutate(sampled_n = factor(pts))
+}
+
+# Executing the two functions requires a great deal of computational time
+div_boot_df <-
+  bind_rows(
+    div_summarize(40,  B),
+    div_summarize(80,  B),
+    div_summarize(100, B),
+    div_summarize(120, B),
+    div_summarize(160, B),
+    div_summarize(200, B)
+  )
 
 #' ## Results
 #'
@@ -395,6 +462,8 @@ ggplot(qspe_pred, aes(x = quads, y = pred)) +
 spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
   group_by(sample_points) %>%
   summarize(med_pred = median(pred, na.rm = TRUE))
+
+#' ### Diversity indices
 
 
 #' # Ground cover
