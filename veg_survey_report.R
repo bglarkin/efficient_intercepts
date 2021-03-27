@@ -326,10 +326,12 @@ div_boot <- function(pts, B) {
       data.frame(
         N0  = length(spe_sum[spe_sum > 0]),
         N1  = exp(diversity(spe_sum[spe_sum > 0])),
-        N2  = diversity(spe_sum[spe_sum > 0], "inv"),
-        E10 = N1 / N0,
-        E20 = N2 / N0
-      )
+        N2  = diversity(spe_sum[spe_sum > 0], "inv")
+      ) %>% 
+        mutate(
+          E10 = N1 / N0,
+          E20 = N2 / N0
+        )
       
     }) %>%
       bind_rows()
@@ -353,15 +355,15 @@ div_summarize <- function(pts, B) {
 }
 
 # Executing the two functions requires a great deal of computational time
+div_40  <- div_summarize(40,  B)
+div_80  <- div_summarize(80,  B)
+div_100 <- div_summarize(100, B)
+div_120 <- div_summarize(120, B)
+div_160 <- div_summarize(160, B)
+div_200 <- div_summarize(200, B)
+
 div_boot_df <-
-  bind_rows(
-    div_summarize(40,  B),
-    div_summarize(80,  B),
-    div_summarize(100, B),
-    div_summarize(120, B),
-    div_summarize(160, B),
-    div_summarize(200, B)
-  )
+  bind_rows(div_40, div_80, div_100, div_120, div_160, div_200)
 
 #' ## Results
 #'
