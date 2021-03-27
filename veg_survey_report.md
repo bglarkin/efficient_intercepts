@@ -67,7 +67,7 @@ for (i in 1:length(packages_needed)) {
     ## ✓ ggplot2 3.3.3     ✓ purrr   0.3.4
     ## ✓ tibble  3.1.0     ✓ dplyr   1.0.5
     ## ✓ tidyr   1.1.3     ✓ stringr 1.4.0
-    ## ✓ readr   1.4.0     ✓ forcats 0.5.0
+    ## ✓ readr   1.4.0     ✓ forcats 0.5.1
 
     ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
     ## x dplyr::filter() masks stats::filter()
@@ -389,7 +389,7 @@ spe_fun = function(x) {
   )
 }
 
-## Rarefy the species data (this step takes a few minutes).
+## A dataframe is needed to store the rarefaction results
 spe_pred <-
   lapply(spe_mat_list, spe_fun) %>%
   bind_rows(.id = "id") %>%
@@ -457,7 +457,7 @@ qspe_fun = function(x) {
   )
 }
 
-## This is where the accumulations at desired points is calculated
+## A dataframe is needed to store the rarefaction results
 qspe_pred <-
   lapply(qspe_mat_list, qspe_fun) %>%
   bind_rows(.id = "id") %>%
@@ -470,6 +470,82 @@ qspe_pred <-
            remove = FALSE)
 ## 13 rows of predicted values are missing because (presumably) some quadrats detected
 ## no species that weren't also detected by point-intercept surveys
+```
+
+### Diversity indices with point-intercept data
+
+Species richness or abundance may decline as a result of downsampling,
+but on their own, such declines aren’t evidence that the data will be
+compromised. If downsampling removes some rare species and evenly
+reduces abundance of common species, the results of downstream analyses
+(multivariate decomposition, functional group summaries, etc.) may be
+unaffected. A quick way to examine the effect of downsampling on
+community metrics is to calculate diversity indices on downsampled data.
+Here, the species data are downsampled and resampled, using a
+bootstrapping technique to produce means and confidence intervals of
+Hill Numbers, a common set of diversity indices. Read more about Hill
+Numbers in [Diversity and Evenness: A Unifying Notation and Its
+Consequences (Hill
+1973)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1934352)
+
+``` r
+# The bootstrap function uses the same `spe_mat_list` for input.
+# Nested lists are created because the samples-species matrices
+# are ragged and cannot be bound into a single data frame.
+div_boot <- function(pts, B) {
+  lapply(spe_mat_list, function(x, pts, B) {
+    sampled <- rownames_to_column(x, var = "p_int") %>%
+      slice_sample(n = pts * B, replace = TRUE) %>%
+      mutate(boot_run = paste0("boot_", rep(1:B, each = pts)))
+    
+    boot_sep <- split(sampled, sampled$boot_run)
+    
+    lapply(boot_sep, function(x) {
+      spe_sum <- x %>% 
+        select(-p_int,-boot_run) %>%
+        colSums()
+      
+      data.frame(
+        N0  = length(spe_sum[spe_sum > 0]),
+        N1  = exp(diversity(spe_sum[spe_sum > 0])),
+        N2  = diversity(spe_sum[spe_sum > 0], "inv")
+      ) %>% 
+        mutate(
+          E10 = N1 / N0,
+          E20 = N2 / N0
+        )
+      
+    }) %>%
+      bind_rows()
+    
+  }, pts = pts, B = B)
+}
+
+# A second function processes the diversity index summaries.
+div_summarize <- function(pts, B) {
+  lapply(div_boot(pts, B), function(x)
+    (colMeans(x))) %>%
+    bind_rows(.id = "grid_point") %>%
+    pivot_longer(N0:E20, names_to = "index", values_to = "value") %>%
+    group_by(index) %>%
+    summarize(
+      index_avg = mean(value),
+      index_se  = sd(value),
+      .groups   = "drop"
+    ) %>%
+    mutate(sampled_n = factor(pts))
+}
+
+# Executing the two functions requires a great deal of computational time
+div_40  <- div_summarize(40,  B)
+div_80  <- div_summarize(80,  B)
+div_100 <- div_summarize(100, B)
+div_120 <- div_summarize(120, B)
+div_160 <- div_summarize(160, B)
+div_200 <- div_summarize(200, B)
+
+div_boot_df <-
+  bind_rows(div_40, div_80, div_100, div_120, div_160, div_200)
 ```
 
 ## Results
@@ -620,6 +696,8 @@ spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
     ##   <fct>            <dbl>
     ## 1 100               15.9
     ## 2 200               20
+
+### Diversity indices
 
 # Ground cover
 
@@ -798,15 +876,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| bare ground             |          6.27 |          8.69 |        0.39 |
-| basal vegetation        |          7.22 |          9.96 |        0.38 |
-| gravel                  |          6.80 |          9.89 |        0.45 |
-| lichen                  |          6.71 |          9.34 |        0.39 |
-| litter                  |          7.31 |         10.47 |        0.43 |
-| moss                    |          7.12 |         10.14 |        0.42 |
-| rock                    |          6.81 |          9.48 |        0.39 |
-| soil                    |          6.94 |         10.05 |        0.45 |
-| wood (stick)            |          6.65 |          9.03 |        0.36 |
+| bare ground             |          6.25 |          8.58 |        0.37 |
+| basal vegetation        |          7.04 |         10.13 |        0.44 |
+| gravel                  |          7.01 |          9.82 |        0.40 |
+| lichen                  |          6.57 |          9.38 |        0.43 |
+| litter                  |          7.40 |         10.46 |        0.41 |
+| moss                    |          7.35 |         10.07 |        0.37 |
+| rock                    |          7.00 |          9.62 |        0.37 |
+| soil                    |          6.97 |          9.93 |        0.42 |
+| wood (stick)            |          6.34 |          9.18 |        0.45 |
 
 # Vegetation height
 
@@ -934,7 +1012,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.55 |          13.9 |        0.46 |
+|          9.91 |         13.69 |        0.38 |
 
 # Vegetation cover in functional groups
 
@@ -1081,12 +1159,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.41 |          7.54 |        0.39 |
-| native                | annual             | graminoid         |          2.40 |          3.19 |        0.33 |
-| native                | perennial          | forb              |          7.03 |          9.71 |        0.38 |
-| native                | perennial          | graminoid         |          7.21 |         10.32 |        0.43 |
-| native                | perennial          | shrub             |          7.18 |         10.22 |        0.42 |
-| nonnative             | annual             | forb              |          7.11 |         10.07 |        0.42 |
-| nonnative             | annual             | graminoid         |          7.11 |         10.29 |        0.45 |
-| nonnative             | perennial          | forb              |          6.91 |          9.75 |        0.41 |
-| nonnative             | perennial          | graminoid         |          7.22 |         10.18 |        0.41 |
+| native                | annual             | forb              |          5.34 |          7.80 |        0.46 |
+| native                | annual             | graminoid         |          2.46 |          3.18 |        0.29 |
+| native                | perennial          | forb              |          7.08 |          9.62 |        0.36 |
+| native                | perennial          | graminoid         |          7.19 |         10.35 |        0.44 |
+| native                | perennial          | shrub             |          7.14 |         10.33 |        0.45 |
+| nonnative             | annual             | forb              |          7.34 |          9.83 |        0.34 |
+| nonnative             | annual             | graminoid         |          7.22 |         10.36 |        0.43 |
+| nonnative             | perennial          | forb              |          7.11 |          9.86 |        0.39 |
+| nonnative             | perennial          | graminoid         |          7.34 |         10.27 |        0.40 |
