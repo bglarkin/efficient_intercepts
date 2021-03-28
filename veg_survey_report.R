@@ -479,7 +479,14 @@ spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
 #' of species and their evenness. Simpson's index (Hill N2), is more sensitive to changes
 #' in the most numerous species. The ratio or evenness indices E10 and E20 increase 
 #' as the difference in abundance among species decreases. 
-#' 
+
+#+ diversity_indices_bootstrap
+ggplot(div, aes(x = as.factor(sampled_n), y = value_pct)) +
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "point intercepts (n)", y = "index value (pct of total)") +
+  facet_wrap(vars(index), scales = "free_y") +
+  theme_bgl
+
 #' N1 declines about 5% from 200 to 100 point intercepts in median value, suggesting that
 #' the loss in species number isn't affecting evenness very much. The decline in N1 
 #' probably results most from the species lost (N0). N2 declines very little from 200
@@ -491,13 +498,6 @@ spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
 #' to 100 point intercepts, and what's difficult to say is what effect this might have on 
 #' community analysis. It's possible that this will improve resolution by having fewer 
 #' low-abundance species to fit in models.
-
-#+ diversity_indices_bootstrap
-ggplot(div, aes(x = as.factor(sampled_n), y = value_pct)) +
-  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "index value (pct of total)") +
-  facet_wrap(vars(index), scales = "free_y") +
-  theme_bgl
 
 #' # Ground cover
 #'

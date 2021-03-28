@@ -21,7 +21,6 @@ Beau Larkin
     richness](#survey-efficiency-species-richness)
     -   [Data wrangling and analysis](#data-wrangling-and-analysis)
     -   [Results](#results)
--   [Ground cover](#ground-cover)
     -   [Example and motivation](#example-and-motivation)
 -   [Vegetation height](#vegetation-height)
     -   [Example and motivation](#example-and-motivation-1)
@@ -714,6 +713,16 @@ sensitive to changes in the most numerous species. The ratio or evenness
 indices E10 and E20 increase as the difference in abundance among
 species decreases.
 
+``` r
+ggplot(div, aes(x = as.factor(sampled_n), y = value_pct)) +
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "point intercepts (n)", y = "index value (pct of total)") +
+  facet_wrap(vars(index), scales = "free_y") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/diversity_indices_bootstrap-1.png)<!-- -->
+
 N1 declines about 5% from 200 to 100 point intercepts in median value,
 suggesting that the loss in species number isn’t affecting evenness very
 much. The decline in N1 probably results most from the species lost
@@ -726,19 +735,7 @@ species with greater abundances would increase evenness. It looks like
 about a 10% increase in evenness from 200 to 100 point intercepts, and
 what’s difficult to say is what effect this might have on community
 analysis. It’s possible that this will improve resolution by having
-fewer low-abundance species to fit in models.
-
-``` r
-ggplot(div, aes(x = as.factor(sampled_n), y = value_pct)) +
-  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
-  labs(x = "point intercepts (n)", y = "index value (pct of total)") +
-  facet_wrap(vars(index), scales = "free_y") +
-  theme_bgl
-```
-
-![](veg_survey_report_files/figure-gfm/diversity_indices_bootstrap-1.png)<!-- -->
-
-# Ground cover
+fewer low-abundance species to fit in models. \# Ground cover
 
 ## Example and motivation
 
@@ -915,15 +912,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| bare ground             |          6.30 |          8.65 |        0.37 |
-| basal vegetation        |          7.16 |         10.06 |        0.41 |
-| gravel                  |          6.79 |          9.83 |        0.45 |
-| lichen                  |          6.68 |          9.83 |        0.47 |
-| litter                  |          7.30 |         10.47 |        0.43 |
-| moss                    |          7.10 |         10.09 |        0.42 |
-| rock                    |          6.87 |          9.62 |        0.40 |
-| soil                    |          6.84 |          9.75 |        0.43 |
-| wood (stick)            |          6.48 |          9.14 |        0.41 |
+| bare ground             |          6.55 |          8.74 |        0.33 |
+| basal vegetation        |          7.25 |         10.10 |        0.39 |
+| gravel                  |          6.84 |          9.66 |        0.41 |
+| lichen                  |          6.61 |          9.68 |        0.46 |
+| litter                  |          7.30 |         10.34 |        0.42 |
+| moss                    |          7.13 |         10.19 |        0.43 |
+| rock                    |          6.87 |          9.88 |        0.44 |
+| soil                    |          6.90 |          9.78 |        0.42 |
+| wood (stick)            |          6.28 |          8.96 |        0.43 |
 
 # Vegetation height
 
@@ -1051,7 +1048,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.33 |         14.14 |        0.52 |
+|          9.67 |         13.69 |        0.42 |
 
 # Vegetation cover in functional groups
 
@@ -1198,12 +1195,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.25 |          7.42 |        0.41 |
-| native                | annual             | graminoid         |          2.49 |          3.17 |        0.27 |
-| native                | perennial          | forb              |          6.75 |          9.94 |        0.47 |
-| native                | perennial          | graminoid         |          7.27 |         10.13 |        0.39 |
-| native                | perennial          | shrub             |          7.27 |         10.21 |        0.40 |
-| nonnative             | annual             | forb              |          7.05 |         10.01 |        0.42 |
-| nonnative             | annual             | graminoid         |          7.25 |         10.37 |        0.43 |
-| nonnative             | perennial          | forb              |          6.85 |          9.90 |        0.45 |
-| nonnative             | perennial          | graminoid         |          7.13 |         10.07 |        0.41 |
+| native                | annual             | forb              |          5.19 |          7.58 |        0.46 |
+| native                | annual             | graminoid         |          2.32 |          3.34 |        0.44 |
+| native                | perennial          | forb              |          7.08 |          9.85 |        0.39 |
+| native                | perennial          | graminoid         |          7.25 |         10.51 |        0.45 |
+| native                | perennial          | shrub             |          7.12 |         10.13 |        0.42 |
+| nonnative             | annual             | forb              |          7.08 |         10.04 |        0.42 |
+| nonnative             | annual             | graminoid         |          7.16 |         10.08 |        0.41 |
+| nonnative             | perennial          | forb              |          6.93 |          9.78 |        0.41 |
+| nonnative             | perennial          | graminoid         |          7.23 |         10.29 |        0.42 |
