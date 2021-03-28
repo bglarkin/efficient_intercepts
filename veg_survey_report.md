@@ -527,12 +527,6 @@ div_summarize <- function(pts, B) {
     (colMeans(x))) %>%
     bind_rows(.id = "grid_point") %>%
     pivot_longer(N0:E20, names_to = "index", values_to = "value") %>%
-    group_by(index) %>%
-    summarize(
-      index_avg = mean(value),
-      index_se  = sd(value),
-      .groups   = "drop"
-    ) %>%
     mutate(sampled_n = factor(pts))
 }
 
@@ -546,6 +540,16 @@ div_200 <- div_summarize(200, B)
 
 div_boot_df <-
   bind_rows(div_40, div_80, div_100, div_120, div_160, div_200)
+
+div <- div_boot_df %>%
+  left_join(div_boot_df %>%
+              filter(sampled_n == 200) %>% 
+              select(-sampled_n),
+            by = c("grid_point", "index"), 
+            suffix = c("_calc", "_max")) %>% 
+  mutate(value_pct = value_calc / value_max * 100, 
+         sampled_n = factor(sampled_n),
+         index = factor(index, levels = c("N0", "N1", "N2", "E10", "E20")))
 ```
 
 ## Results
@@ -698,6 +702,41 @@ spe_pred %>% filter(sample_points %in% c(200, 100)) %>%
     ## 2 200               20
 
 ### Diversity indices
+
+The results resemble the trend seen with rarefaction. Hill N0, or
+species richness, should reflect the rarefaction, and it does, although
+the median may be off a bit because this Hill Number uses real richness
+numbers, not rarefied predictions. Hill N1, or Shannon Diversity
+(*e*<sup>*H*</sup>), declines somewhat linearly from 200 to 80 sampled
+point intercepts and then plummets. This index is sensitive to the total
+number of species and their evenness. Simpson’s index (Hill N2), is more
+sensitive to changes in the most numerous species. The ratio or evenness
+indices E10 and E20 increase as the difference in abundance among
+species decreases.
+
+N1 declines about 5% from 200 to 100 point intercepts in median value,
+suggesting that the loss in species number isn’t affecting evenness very
+much. The decline in N1 probably results most from the species lost
+(N0). N2 declines very little from 200 to 100 point intercepts,
+suggesting that dominant species are still recovered well.
+
+The change in Hill Ratios is harder to interpret. Evenness increases
+with downsampling, and this makes sense if rare species are lost. Fewer
+species with greater abundances would increase evenness. It looks like
+about a 10% increase in evenness from 200 to 100 point intercepts, and
+what’s difficult to say is what effect this might have on community
+analysis. It’s possible that this will improve resolution by having
+fewer low-abundance species to fit in models.
+
+``` r
+ggplot(div, aes(x = as.factor(sampled_n), y = value_pct)) +
+  geom_boxplot(fill = "gray90", outlier.color = "gray20") +
+  labs(x = "point intercepts (n)", y = "index value (pct of total)") +
+  facet_wrap(vars(index), scales = "free_y") +
+  theme_bgl
+```
+
+![](veg_survey_report_files/figure-gfm/diversity_indices_bootstrap-1.png)<!-- -->
 
 # Ground cover
 
@@ -876,15 +915,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| bare ground             |          6.25 |          8.58 |        0.37 |
-| basal vegetation        |          7.04 |         10.13 |        0.44 |
-| gravel                  |          7.01 |          9.82 |        0.40 |
-| lichen                  |          6.57 |          9.38 |        0.43 |
-| litter                  |          7.40 |         10.46 |        0.41 |
-| moss                    |          7.35 |         10.07 |        0.37 |
-| rock                    |          7.00 |          9.62 |        0.37 |
-| soil                    |          6.97 |          9.93 |        0.42 |
-| wood (stick)            |          6.34 |          9.18 |        0.45 |
+| bare ground             |          6.30 |          8.65 |        0.37 |
+| basal vegetation        |          7.16 |         10.06 |        0.41 |
+| gravel                  |          6.79 |          9.83 |        0.45 |
+| lichen                  |          6.68 |          9.83 |        0.47 |
+| litter                  |          7.30 |         10.47 |        0.43 |
+| moss                    |          7.10 |         10.09 |        0.42 |
+| rock                    |          6.87 |          9.62 |        0.40 |
+| soil                    |          6.84 |          9.75 |        0.43 |
+| wood (stick)            |          6.48 |          9.14 |        0.41 |
 
 # Vegetation height
 
@@ -1012,7 +1051,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.91 |         13.69 |        0.38 |
+|          9.33 |         14.14 |        0.52 |
 
 # Vegetation cover in functional groups
 
@@ -1159,12 +1198,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.34 |          7.80 |        0.46 |
-| native                | annual             | graminoid         |          2.46 |          3.18 |        0.29 |
-| native                | perennial          | forb              |          7.08 |          9.62 |        0.36 |
-| native                | perennial          | graminoid         |          7.19 |         10.35 |        0.44 |
-| native                | perennial          | shrub             |          7.14 |         10.33 |        0.45 |
-| nonnative             | annual             | forb              |          7.34 |          9.83 |        0.34 |
-| nonnative             | annual             | graminoid         |          7.22 |         10.36 |        0.43 |
-| nonnative             | perennial          | forb              |          7.11 |          9.86 |        0.39 |
-| nonnative             | perennial          | graminoid         |          7.34 |         10.27 |        0.40 |
+| native                | annual             | forb              |          5.25 |          7.42 |        0.41 |
+| native                | annual             | graminoid         |          2.49 |          3.17 |        0.27 |
+| native                | perennial          | forb              |          6.75 |          9.94 |        0.47 |
+| native                | perennial          | graminoid         |          7.27 |         10.13 |        0.39 |
+| native                | perennial          | shrub             |          7.27 |         10.21 |        0.40 |
+| nonnative             | annual             | forb              |          7.05 |         10.01 |        0.42 |
+| nonnative             | annual             | graminoid         |          7.25 |         10.37 |        0.43 |
+| nonnative             | perennial          | forb              |          6.85 |          9.90 |        0.45 |
+| nonnative             | perennial          | graminoid         |          7.13 |         10.07 |        0.41 |

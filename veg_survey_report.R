@@ -360,7 +360,7 @@ div_boot_df <-
   bind_rows(div_40, div_80, div_100, div_120, div_160, div_200)
 
 div <- div_boot_df %>%
-  left_join(div_data %>%
+  left_join(div_boot_df %>%
               filter(sampled_n == 200) %>% 
               select(-sampled_n),
             by = c("grid_point", "index"), 
