@@ -236,7 +236,7 @@ spe_pred <-
 #' ### Quadrat data
 #' The rarefaction of species data from point-intercept surveys can be compared with a similar
 #' analysis of quadrat-based survey data. Quadrat methods have detected different suites of species than
-#' point-intercept methods have [report](https://docs.google.com/document/d/1UfM6ueUNCGtW0-PY8FUWc7vRSBwrFTfDtZdI5gUv35s/edit?usp=sharing),
+#' point-intercept methods have ([report](https://docs.google.com/document/d/1UfM6ueUNCGtW0-PY8FUWc7vRSBwrFTfDtZdI5gUv35s/edit?usp=sharing)),
 #' suggesting that it may be advisable to combine quadrats with point-intercepts. To investigate this, a
 #' rarefaction is also performed with the quadrat data (`qspe`), but before rarefying, the species are filtered
 #' to include only those which were detected by quadrats but not by point-intercepts. The results will show how
@@ -563,8 +563,8 @@ gr_samp_df %>%
 #' Cumulative averages in these ground cover classes flatten quickly, reaching a narrow and
 #' stable range after about 50 intercept points are measured. Does this mean that we could
 #' obtain satisfactory data with fewer intercept points?
-
-
+#'
+#'
 #' ## Bootstrapped means and CIs of ground cover
 #'
 #' A resampling approach is used to create bootstrapped means and confidence intervals

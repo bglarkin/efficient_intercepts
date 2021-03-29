@@ -22,6 +22,8 @@ Beau Larkin
     -   [Data wrangling and analysis](#data-wrangling-and-analysis)
     -   [Results](#results)
     -   [Example and motivation](#example-and-motivation)
+    -   [Bootstrapped means and CIs of ground
+        cover](#bootstrapped-means-and-cis-of-ground-cover)
 -   [Vegetation height](#vegetation-height)
     -   [Example and motivation](#example-and-motivation-1)
     -   [Data Wrangling](#data-wrangling)
@@ -806,7 +808,9 @@ gr_samp_df %>%
 Cumulative averages in these ground cover classes flatten quickly,
 reaching a narrow and stable range after about 50 intercept points are
 measured. Does this mean that we could obtain satisfactory data with
-fewer intercept points? \#\# Bootstrapped means and CIs of ground cover
+fewer intercept points?
+
+## Bootstrapped means and CIs of ground cover
 
 A resampling approach is used to create bootstrapped means and
 confidence intervals of percent ground cover.
@@ -912,15 +916,15 @@ grcov_boot_summary %>%
 
 | intercept\_ground\_code | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:------------------------|--------------:|--------------:|------------:|
-| bare ground             |          6.55 |          8.74 |        0.33 |
-| basal vegetation        |          7.25 |         10.10 |        0.39 |
-| gravel                  |          6.84 |          9.66 |        0.41 |
-| lichen                  |          6.61 |          9.68 |        0.46 |
-| litter                  |          7.30 |         10.34 |        0.42 |
-| moss                    |          7.13 |         10.19 |        0.43 |
-| rock                    |          6.87 |          9.88 |        0.44 |
-| soil                    |          6.90 |          9.78 |        0.42 |
-| wood (stick)            |          6.28 |          8.96 |        0.43 |
+| bare ground             |          6.14 |          8.56 |        0.39 |
+| basal vegetation        |          7.06 |         10.20 |        0.44 |
+| gravel                  |          7.16 |          9.74 |        0.36 |
+| lichen                  |          7.22 |          9.68 |        0.34 |
+| litter                  |          7.30 |         10.31 |        0.41 |
+| moss                    |          7.13 |         10.23 |        0.43 |
+| rock                    |          6.86 |         10.09 |        0.47 |
+| soil                    |          7.03 |          9.66 |        0.37 |
+| wood (stick)            |          6.43 |          8.73 |        0.36 |
 
 # Vegetation height
 
@@ -1048,7 +1052,7 @@ ht_boot_summary %>%
 
 | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |--------------:|--------------:|------------:|
-|          9.67 |         13.69 |        0.42 |
+|           9.9 |         13.83 |         0.4 |
 
 # Vegetation cover in functional groups
 
@@ -1195,12 +1199,12 @@ fg_boot_summary %>%
 
 | plant\_native\_status | plant\_life\_cycle | plant\_life\_form | ci\_samp\_200 | ci\_samp\_100 | pct\_change |
 |:----------------------|:-------------------|:------------------|--------------:|--------------:|------------:|
-| native                | annual             | forb              |          5.19 |          7.58 |        0.46 |
-| native                | annual             | graminoid         |          2.32 |          3.34 |        0.44 |
-| native                | perennial          | forb              |          7.08 |          9.85 |        0.39 |
-| native                | perennial          | graminoid         |          7.25 |         10.51 |        0.45 |
-| native                | perennial          | shrub             |          7.12 |         10.13 |        0.42 |
-| nonnative             | annual             | forb              |          7.08 |         10.04 |        0.42 |
-| nonnative             | annual             | graminoid         |          7.16 |         10.08 |        0.41 |
-| nonnative             | perennial          | forb              |          6.93 |          9.78 |        0.41 |
-| nonnative             | perennial          | graminoid         |          7.23 |         10.29 |        0.42 |
+| native                | annual             | forb              |          5.33 |          7.72 |        0.45 |
+| native                | annual             | graminoid         |          2.41 |          3.42 |        0.42 |
+| native                | perennial          | forb              |          6.97 |          9.87 |        0.42 |
+| native                | perennial          | graminoid         |          7.23 |         10.21 |        0.41 |
+| native                | perennial          | shrub             |          7.23 |         10.26 |        0.42 |
+| nonnative             | annual             | forb              |          7.13 |         10.13 |        0.42 |
+| nonnative             | annual             | graminoid         |          7.10 |         10.22 |        0.44 |
+| nonnative             | perennial          | forb              |          6.92 |          9.69 |        0.40 |
+| nonnative             | perennial          | graminoid         |          7.29 |         10.22 |        0.40 |
