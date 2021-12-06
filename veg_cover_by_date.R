@@ -11,7 +11,7 @@
 #' # Description
 #' This is an addendum to the vegetation sampling guidance report produced in early 2021.
 #' The purpose here is to produce some graphics and supporting summaries about how
-#' vegetation cover changes over the course of a sesason, and how we can handle, reduce, 
+#' vegetation cover changes over the course of a season, and how we can handle, reduce, 
 #' or otherwise manage it with surveys at MPG Ranch.
 #' 
 #' # Resources
@@ -23,7 +23,7 @@
 
 #+ install_1,message=FALSE
 # Quick-loading resources
-packages_needed = c("tidyverse", "knitr", "rjson", "plotrix", "colorspace", "devtools")
+packages_needed = c("tidyverse", "knitr", "rjson", "colorspace")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -31,13 +31,10 @@ for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
 
-#+ install_2,include=FALSE
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
-
 #+ install_3,message=FALSE
 # Big R Query
 # ggmap package installed from GitHub using `devtools` (not shown)
-packages_needed = c("bigrquery", "ggmap") # comma delimited vector of package names
+packages_needed = c("bigrquery") # comma delimited vector of package names
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -55,10 +52,6 @@ bq_auth(
 )
 Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
 billing <- bq_test_project()
-
-#+ Google_maps_key,echo=FALSE
-mapKey <- fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$mapKey
-register_google(key = mapKey)
 
 #' ## Global functions and styles: `theme_bgl`
 # Load text file from local working directory
