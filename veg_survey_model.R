@@ -36,10 +36,7 @@ if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
 for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
-}
-
-#+ install_2,include=FALSE
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
+} 
 
 #+ install_3,message=FALSE
 # Big R Query

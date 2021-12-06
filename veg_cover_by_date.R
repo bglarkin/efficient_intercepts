@@ -23,17 +23,13 @@
 
 #+ install_1,message=FALSE
 # Quick-loading resources
-packages_needed = c("tidyverse", "knitr", "rjson", "lubridate", "bigrquery", "devtools", "ggmap")
+packages_needed = c("tidyverse", "knitr", "rjson", "lubridate", "bigrquery", "devtools", "ggmap", "colorspace")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
 for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
-
-#+ install_2,message=FALSE
-devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
-library(ggmap)
 
 #' ## API keys
 #' API keys for data access are pulled from local resources and are not available in the hosted environment. Code not shown here.
@@ -112,7 +108,7 @@ cvr_df <-
 #' ### Survey locations
 #' The following map shows locations of points that appear at least once in this data set. The table after the map
 #' details the number of points included per year. 
-#+ fig_map,echo=TRUE
+#+ fig_map,echo=TRUE,message=FALSE
 mpgr_map <- 
   ggmap(
     get_googlemap(
@@ -126,35 +122,26 @@ mpgr_map +
     data = cvr_df %>% 
       select(grid_point) %>% 
       distinct() %>% 
-      left_join(gpmeta %>% select(grid_point, lat, long), by = "grid_point"),
+      left_join(gp_meta_df %>% select(grid_point, lat, long), by = "grid_point"),
     aes(x = long, y = lat)
-  )
-
-#+ pfg_test_sites
-mpgr_map +
-  geom_point(
-    data = map_data,
-    aes(x = long, y = lat, fill = habitat),
-    size = 3,
-    shape = 21,
-    alpha = 0.7
   ) +
-  scale_fill_discrete_sequential(name = "grassland type", palette = "viridis") +
-  theme_bgl
-
-
-
+  theme_void()
+#+ table_points_years,echo=TRUE
+cvr_df %>% 
+  distinct(grid_point, survey_sequence) %>% 
+  count(survey_sequence) %>% 
+  kable(format = "pandoc")
 #' 
-#' Plan cover can vary substantially over a season, but this depends on the group of plants and the year.
+#' ### Results
+#' Plant cover can vary substantially over a season, but this depends on the group of plants and the year.
 #' The 2011-12 season preceded several years of drought, and cover appears generally higher as a result, 
 #' with native forbs slowly increasing and nonnative forbs strongly increasing throughout the season. Native perennial
 #' grasses were abundant in 2011-12, with a unimodal peak in cover near mid-summer. Cover retracted slightly in 2016 for most 
 #' groups, with native forbs declining from mid-summer on and nonnative forbs holding flat. Perennial grasses
 #' in 2016 were smaller in 2016 and showed a briefer peak in abundance near the end of June. Nonnative grasses were flat and 
-#' similar t0 2011-12. 
-#' The 2011-2012 survey seasons revealed large seasonal variation, particularly with perennial grasses. 
-#' These were higher in mid-season, as would be expected. 
-#' 
+#' similar to 2011-12. 2021 was a shorter season, with much less change in cover over time. Cover was flat 
+#' for all functional groups except nonnative perennial grasses, which declined sharply. I suspect that this was 
+#' driven more by a difference in species/locations surveyed that an actual decline in cover.  
 #+ fig_seasonal_cover,echo=TRUE
 cvr_df %>% 
   filter(plant_life_cycle == "perennial") %>% 
