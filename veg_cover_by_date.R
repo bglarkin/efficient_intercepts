@@ -23,7 +23,7 @@
 
 #+ install_1,message=FALSE
 # Quick-loading resources
-packages_needed = c("tidyverse", "knitr", "rjson", "colorspace")
+packages_needed = c("tidyverse", "knitr", "rjson", "lubridate", "bigrquery", "devtools", "ggmap")
 packages_installed = packages_needed %in% rownames(installed.packages())
 if (any(!packages_installed))
   install.packages(packages_needed[!packages_installed])
@@ -31,16 +31,9 @@ for (i in 1:length(packages_needed)) {
   library(packages_needed[i], character.only = T)
 }
 
-#+ install_3,message=FALSE
-# Big R Query
-# ggmap package installed from GitHub using `devtools` (not shown)
-packages_needed = c("bigrquery") # comma delimited vector of package names
-packages_installed = packages_needed %in% rownames(installed.packages())
-if (any(!packages_installed))
-  install.packages(packages_needed[!packages_installed])
-for (i in 1:length(packages_needed)) {
-  library(packages_needed[i], character.only = T)
-}
+#+ install_2,message=FALSE
+devtools::install_github("dkahle/ggmap", ref = "tidyup", force = TRUE)   
+library(ggmap)
 
 #' ## API keys
 #' API keys for data access are pulled from local resources and are not available in the hosted environment. Code not shown here.
@@ -53,13 +46,17 @@ bq_auth(
 Sys.setenv(BIGQUERY_TEST_PROJECT = "mpg-data-warehouse")
 billing <- bq_test_project()
 
+#+ Google_maps_key,echo=FALSE
+mapKey <- fromJSON(file = paste0(getwd(), "/R_globalKeys.json"))$mapKey
+register_google(key = mapKey)
+
 #' ## Global functions and styles: `theme_bgl`
 # Load text file from local working directory
 source(paste0(getwd(), "/styles.txt"))
 
 #' ## Data
 #' Survey metadata
-#+ survey_metadata, echo = FALSE
+#+ survey_metadata,echo=TRUE
 meta_sql <- 
   "
   SELECT *
@@ -69,11 +66,22 @@ meta_bq <- bq_project_query(billing, meta_sql)
 meta_tb <- bq_table_download(meta_bq)
 meta_df <- as.data.frame(meta_tb)
 
+#' Grid point metadata
+#+ gpmeta,echo=TRUE
+gp_meta_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.grid_point_summaries.location_position_classification`
+  "
+gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
+gp_meta_tb <- bq_table_download(gp_meta_bq)
+gp_meta_df <- as.data.frame(gp_meta_tb)
+
 #' Plant species and cover data from point-intercept surveys in 2011-12, 2016, and 2021.
 #' Plant data are joined with survey metadata to filter the data to the survey periods with the 
 #' greatest effort (2011-12, 2016, and 2021). Data are simplified and summarized to show sums of 
 #' cover in plant functional groups at each date of annual surveys. 
-#+ plant_cover_data, echo = FALSE
+#+ plant_cover_data,echo=TRUE
 cvr_sql <-
   "
   SELECT *
@@ -88,7 +96,73 @@ cvr_df <-
          plant_native_status %in% c("native", "nonnative"), 
          plant_life_cycle %in% c("annual", "perennial"), 
          plant_life_form %in% c("forb", "graminoid")) %>% 
-  select(survey_ID, year, grid_point, plant_name_common, plant_native_status, plant_life_cycle, plant_life_form, intercepts_pct) %>% 
+  select(survey_ID, survey_sequence, grid_point, plant_name_common, plant_native_status, plant_life_cycle, plant_life_form, intercepts_pct) %>% 
   left_join(meta_df %>% select(survey_ID, date), by = "survey_ID") %>% 
-  group_by(grid_point, year, date, plant_native_status, plant_life_cycle, plant_life_form) %>% 
+  mutate(doy = yday(date)) %>% 
+  group_by(grid_point, survey_sequence, doy, plant_native_status, plant_life_cycle, plant_life_form) %>% 
   summarize(cvr_pct = sum(intercepts_pct), .groups = "drop")
+
+#' I examined point-intercept cover data from 2011-12, 2016, and 2021. These were years with the most extensive 
+#' survey efforts. I filtered the data to include only points in uncultivated grassland to reduce the noise
+#' associated with restoration activities. The removal of uncultivated grasslands probably obscures activitiy
+#' of most of the exotic forage grass plantations, however. 
+#' Very little signal and generally low cover was observed with annual
+#' plants (not shown), so they were filtered as well. 
+#' 
+#' ### Survey locations
+#' The following map shows locations of points that appear at least once in this data set. The table after the map
+#' details the number of points included per year. 
+#+ fig_map,echo=TRUE
+mpgr_map <- 
+  ggmap(
+    get_googlemap(
+      center = c(lon = -114.008, lat = 46.700006),
+      zoom = 13, 
+      scale = 2,
+      maptype ='terrain')
+  )
+mpgr_map +
+  geom_point(
+    data = cvr_df %>% 
+      select(grid_point) %>% 
+      distinct() %>% 
+      left_join(gpmeta %>% select(grid_point, lat, long), by = "grid_point"),
+    aes(x = long, y = lat)
+  )
+
+#+ pfg_test_sites
+mpgr_map +
+  geom_point(
+    data = map_data,
+    aes(x = long, y = lat, fill = habitat),
+    size = 3,
+    shape = 21,
+    alpha = 0.7
+  ) +
+  scale_fill_discrete_sequential(name = "grassland type", palette = "viridis") +
+  theme_bgl
+
+
+
+#' 
+#' Plan cover can vary substantially over a season, but this depends on the group of plants and the year.
+#' The 2011-12 season preceded several years of drought, and cover appears generally higher as a result, 
+#' with native forbs slowly increasing and nonnative forbs strongly increasing throughout the season. Native perennial
+#' grasses were abundant in 2011-12, with a unimodal peak in cover near mid-summer. Cover retracted slightly in 2016 for most 
+#' groups, with native forbs declining from mid-summer on and nonnative forbs holding flat. Perennial grasses
+#' in 2016 were smaller in 2016 and showed a briefer peak in abundance near the end of June. Nonnative grasses were flat and 
+#' similar t0 2011-12. 
+#' The 2011-2012 survey seasons revealed large seasonal variation, particularly with perennial grasses. 
+#' These were higher in mid-season, as would be expected. 
+#' 
+#+ fig_seasonal_cover,echo=TRUE
+cvr_df %>% 
+  filter(plant_life_cycle == "perennial") %>% 
+  ggplot(., aes(x = doy, y = cvr_pct, group = survey_sequence)) +
+  facet_grid(cols = vars(plant_native_status), rows = vars(plant_life_form), scales = "free_y") +
+  geom_point(aes(color = as.factor(survey_sequence)), alpha = 0.8) +
+  geom_smooth(aes(color = as.factor(survey_sequence)), method = "gam", formula = y ~ s(x, bs = "cs"), se = FALSE) +
+  labs(x = "", y = "Percent cover of perennials", caption = "Lines produced by GAM smoother with default parameters.") +
+  scale_color_discrete_qualitative(name = "year", palette = "Harmonic") +
+  scale_x_continuous(breaks = c(121, 152, 182, 213, 244), labels = c("May", "Jun", "Jul", "Aug","Sep")) +
+  theme_bgl
