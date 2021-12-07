@@ -87,7 +87,7 @@ cvr_sql <-
 cvr_bq <- bq_project_query(billing, cvr_sql)
 cvr_tb <- bq_table_download(cvr_bq)
 cvr_df <- 
-  as.data.frame(cvr_tb) %>% 
+  as.data.frame(cvr_tb) %>%
   filter(survey_sequence %in% c("2011-12", "2016", "2021"), 
          plant_native_status %in% c("native", "nonnative"), 
          plant_life_cycle %in% c("annual", "perennial"), 
@@ -96,7 +96,38 @@ cvr_df <-
   left_join(meta_df %>% select(survey_ID, date), by = "survey_ID") %>% 
   mutate(doy = yday(date)) %>% 
   group_by(grid_point, survey_sequence, doy, plant_native_status, plant_life_cycle, plant_life_form) %>% 
-  summarize(cvr_pct = sum(intercepts_pct), .groups = "drop")
+  summarize(cvr_pct = sum(intercepts_pct), .groups = "drop") %>% glimpse()
+#+ plant_top_cover,echo=TRUE
+top_sql <-
+  "
+  SELECT *
+  FROM `mpg-data-warehouse.vegetation_gridVeg_summaries.gridVeg_foliar_cover_top`
+  "
+top_bq <- bq_project_query(billing, top_sql)
+top_tb <- bq_table_download(top_bq)
+top_df <- as.data.frame(top_tb) 
+#+ plant_spe_metadata,echo=TRUE
+spe_meta_sql <-
+  "
+  SELECT key_plant_species, key_plant_code, plant_native_status, plant_life_cycle, plant_life_form, plant_name_sci, plant_name_common
+  FROM `mpg-data-warehouse.vegetation_species_metadata.vegetation_species_metadata`
+  "
+spe_meta_bq <- bq_project_query(billing, spe_meta_sql)
+spe_meta_tb <- bq_table_download(spe_meta_bq)
+spe_meta_df <- as.data.frame(spe_meta_tb) %>% gilmpse()
+#+ top_cover_data,echo=TRUE
+top_cvr_df <- top_df %>% 
+  left_join(spe_meta_df, by = "key_plant_species") %>% 
+  left_join(meta_df %>% select(survey_ID, date), by = "survey_ID") %>% 
+  left_join(gp_meta_df %>% select(grid_point, type3_vegetation_indicators), by = "grid_point") %>% 
+  filter(survey_sequence %in% c("2011-12", "2016", "2021"), 
+         plant_native_status %in% c("native", "nonnative"), 
+         plant_life_cycle %in% c("annual", "perennial"), 
+         plant_life_form %in% c("forb", "graminoid"),
+         type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
+  mutate(doy = yday(date)) %>% 
+  group_by(grid_point, survey_sequence, doy, plant_native_status, plant_life_cycle, plant_life_form) %>% 
+  summarize(top_cvr_pct = sum(top_intercepts_pct), .groups = "drop") %>% glimpse()
 
 #' I examined point-intercept cover data from 2011-12, 2016, and 2021. These were years with the most extensive 
 #' survey efforts. I filtered the data to include only points in uncultivated grassland to reduce the noise
@@ -142,6 +173,10 @@ cvr_df %>%
 #' similar to 2011-12. 2021 was a shorter season, with much less change in cover over time. Cover was flat 
 #' for all functional groups except nonnative perennial grasses, which declined sharply. I suspect that this was 
 #' driven more by a difference in species/locations surveyed that an actual decline in cover.  
+#' 
+#' In any case, variation in cover among locations is much greater than variation across the season.
+#' A shorter sampling season might be good for a number of reasons, but we shouldn't worry much about
+#' using the data we already have. 
 #+ fig_seasonal_cover,echo=TRUE
 cvr_df %>% 
   filter(plant_life_cycle == "perennial") %>% 
@@ -149,7 +184,37 @@ cvr_df %>%
   facet_grid(cols = vars(plant_native_status), rows = vars(plant_life_form), scales = "free_y") +
   geom_point(aes(color = as.factor(survey_sequence)), alpha = 0.8) +
   geom_smooth(aes(color = as.factor(survey_sequence)), method = "gam", formula = y ~ s(x, bs = "cs"), se = FALSE) +
-  labs(x = "", y = "Percent cover of perennials", caption = "Lines produced by GAM smoother with default parameters.") +
+  labs(x = "", y = "Any-hit percent cover of perennials", caption = "Lines produced by GAM smoother with default parameters.") +
   scale_color_discrete_qualitative(name = "year", palette = "Harmonic") +
   scale_x_continuous(breaks = c(121, 152, 182, 213, 244), labels = c("May", "Jun", "Jul", "Aug","Sep")) +
+  theme_bgl
+#+ fig_average_cover,echo=TRUE
+cvr_df %>% 
+  filter(plant_life_cycle == "perennial") %>% 
+  ggplot(., aes(x = survey_sequence, y = cvr_pct)) +
+  facet_grid(cols = vars(plant_native_status), rows = vars(plant_life_form), scales = "free_y") +
+  geom_boxplot(fill = "gray95") +
+  labs(x = "", y = "Any-hit percent cover of perennials") +
+  theme_bgl
+
+#' The previous analysis used all hits from the point-intercept data. It could be that top-cover would
+#' be more responsive to seasonal change, so let's have a look at that here. 
+#+ fig_seasonal_top_cover,echo=TRUE
+top_cvr_df %>% 
+  filter(plant_life_cycle == "perennial") %>% 
+  ggplot(., aes(x = doy, y = top_cvr_pct, group = survey_sequence)) +
+  facet_grid(cols = vars(plant_native_status), rows = vars(plant_life_form), scales = "free_y") +
+  geom_point(aes(color = as.factor(survey_sequence)), alpha = 0.8) +
+  geom_smooth(aes(color = as.factor(survey_sequence)), method = "gam", formula = y ~ s(x, bs = "cs"), se = FALSE) +
+  labs(x = "", y = "Top-hit percent cover of perennials", caption = "Lines produced by GAM smoother with default parameters.") +
+  scale_color_discrete_qualitative(name = "year", palette = "Harmonic") +
+  scale_x_continuous(breaks = c(121, 152, 182, 213, 244), labels = c("May", "Jun", "Jul", "Aug","Sep")) +
+  theme_bgl
+#+ fig_top_average_cover,echo=TRUE
+top_cvr_df %>% 
+  filter(plant_life_cycle == "perennial") %>% 
+  ggplot(., aes(x = survey_sequence, y = top_cvr_pct)) +
+  facet_grid(cols = vars(plant_native_status), rows = vars(plant_life_form), scales = "free_y") +
+  geom_boxplot(fill = "gray95") +
+  labs(x = "", y = "Top-hit percent cover of perennials") +
   theme_bgl
