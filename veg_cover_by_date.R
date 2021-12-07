@@ -50,8 +50,8 @@ register_google(key = mapKey)
 # Load text file from local working directory
 source(paste0(getwd(), "/styles.txt"))
 
-#' ## Data
-#' Survey metadata
+#' # Data
+#' ## Survey metadata
 #+ survey_metadata,echo=TRUE
 meta_sql <- 
   "
@@ -62,7 +62,7 @@ meta_bq <- bq_project_query(billing, meta_sql)
 meta_tb <- bq_table_download(meta_bq)
 meta_df <- as.data.frame(meta_tb)
 
-#' Grid point metadata
+#' ## Grid point metadata
 #+ gpmeta,echo=TRUE
 gp_meta_sql <-
   "
@@ -73,6 +73,7 @@ gp_meta_bq <- bq_project_query(billing, gp_meta_sql)
 gp_meta_tb <- bq_table_download(gp_meta_bq)
 gp_meta_df <- as.data.frame(gp_meta_tb)
 
+#' ## Any-hit plant cover data
 #' Plant species and cover data from point-intercept surveys in 2011-12, 2016, and 2021.
 #' Plant data are joined with survey metadata to filter the data to the survey periods with the 
 #' greatest effort (2011-12, 2016, and 2021). Data are simplified and summarized to show sums of 
@@ -96,7 +97,9 @@ cvr_df <-
   left_join(meta_df %>% select(survey_ID, date), by = "survey_ID") %>% 
   mutate(doy = yday(date)) %>% 
   group_by(grid_point, survey_sequence, doy, plant_native_status, plant_life_cycle, plant_life_form) %>% 
-  summarize(cvr_pct = sum(intercepts_pct), .groups = "drop") %>% glimpse()
+  summarize(cvr_pct = sum(intercepts_pct), .groups = "drop")
+
+#' ## Top-hit plant cover data
 #+ plant_top_cover,echo=TRUE
 top_sql <-
   "
@@ -114,7 +117,7 @@ spe_meta_sql <-
   "
 spe_meta_bq <- bq_project_query(billing, spe_meta_sql)
 spe_meta_tb <- bq_table_download(spe_meta_bq)
-spe_meta_df <- as.data.frame(spe_meta_tb) %>% gilmpse()
+spe_meta_df <- as.data.frame(spe_meta_tb)
 #+ top_cover_data,echo=TRUE
 top_cvr_df <- top_df %>% 
   left_join(spe_meta_df, by = "key_plant_species") %>% 
@@ -127,7 +130,7 @@ top_cvr_df <- top_df %>%
          type3_vegetation_indicators == "uncultivated grassland native or degraded") %>% 
   mutate(doy = yday(date)) %>% 
   group_by(grid_point, survey_sequence, doy, plant_native_status, plant_life_cycle, plant_life_form) %>% 
-  summarize(top_cvr_pct = sum(top_intercepts_pct), .groups = "drop") %>% glimpse()
+  summarize(top_cvr_pct = sum(top_intercepts_pct), .groups = "drop")
 
 #' I examined point-intercept cover data from 2011-12, 2016, and 2021. These were years with the most extensive 
 #' survey efforts. I filtered the data to include only points in uncultivated grassland to reduce the noise
@@ -136,7 +139,7 @@ top_cvr_df <- top_df %>%
 #' Very little signal and generally low cover was observed with annual
 #' plants (not shown), so they were filtered as well. 
 #' 
-#' ### Survey locations
+#' ## Survey locations
 #' The following map shows locations of points that appear at least once in this data set. The table after the map
 #' details the number of points included per year. 
 #+ fig_map,echo=TRUE,message=FALSE
@@ -163,7 +166,8 @@ cvr_df %>%
   count(survey_sequence) %>% 
   kable(format = "pandoc")
 #' 
-#' ### Results
+#' # Results
+#' ## Any-hit cover data
 #' Plant cover can vary substantially over a season, but this depends on the group of plants and the year.
 #' The 2011-12 season preceded several years of drought, and cover appears generally higher as a result, 
 #' with native forbs slowly increasing and nonnative forbs strongly increasing throughout the season. Native perennial
@@ -199,6 +203,13 @@ cvr_df %>%
 
 #' The previous analysis used all hits from the point-intercept data. It could be that top-cover would
 #' be more responsive to seasonal change, so let's have a look at that here. 
+#' 
+#' ## Top-hit cover data
+#' Restricting the plant data to top-hit only changes little of the overall pattern, except in most 
+#' cases to flatten things out over the season. It's possible this is because the largest-statured plants
+#' are most likely to be hit in top-cover, and these aren't as responsive to seasonal change. The exception
+#' is with perennial native grasses. With any-hit data, the seasonal curve in 2011-12 is pronounced, but 
+#' it is flat with top-hit data. Possibly 2011-12 was a wetter period and smaller grasses were expanding. 
 #+ fig_seasonal_top_cover,echo=TRUE
 top_cvr_df %>% 
   filter(plant_life_cycle == "perennial") %>% 
